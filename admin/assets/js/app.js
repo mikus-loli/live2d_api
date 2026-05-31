@@ -576,32 +576,33 @@ var App = (function () {
   }
 
   function getCodeTemplate2(modelName, apiBase) {
-    return '<!-- Live2D \u770b\u677f\u5a18 - ' + modelName + ' -->\n' +
-      '\n' +
-      '<canvas id="live2d" width="300" height="400"></canvas>\n' +
-      '\n' +
-      '<script src="' + apiBase + '/live2d.min.js" onload="loadlive2d(\'live2d\',\'' + apiBase + '/get/?name=' + encodeURIComponent(modelName) + '\')"><\/script>';
+    return '<canvas id="live2d" width="300" height="400"></canvas>\n' +
+      '<script>\n' +
+      '(function(){var s=document.createElement("script");s.src="' + apiBase + '/live2d.min.js";s.onload=function(){loadlive2d("live2d","' + apiBase + '/get/?name=' + encodeURIComponent(modelName) + '")};document.head.appendChild(s)})();\n' +
+      '<\/script>';
   }
 
   function getCodeTemplate4(modelName, modelLast, apiBase) {
-    return '<!-- Live2D \u770b\u677f\u5a18 - ' + modelName + ' (Cubism 4) -->\n' +
-      '\n' +
-      '<canvas id="live2d" width="300" height="400"></canvas>\n' +
-      '\n' +
+    return '<canvas id="live2d" width="300" height="400"></canvas>\n' +
       '<script>\n' +
-      'function initLive2D4(){\n' +
-      '  var canvas=document.getElementById("live2d");\n' +
-      '  var app=new PIXI.Application({view:canvas,width:300,height:400,backgroundAlpha:0,autoDensity:true,resolution:window.devicePixelRatio||1});\n' +
-      '  PIXI.live2d.Live2DModel.from("' + apiBase + '/model/' + encodeURIComponent(modelName) + '/' + encodeURIComponent(modelLast) + '.model3.json").then(function(model){\n' +
-      '    var scale=Math.min(300/model.width*0.85,400/model.height*0.85);model.scale.set(scale);model.x=150;model.y=200;app.stage.addChild(model);\n' +
-      '    canvas.addEventListener("pointermove",function(e){var r=canvas.getBoundingClientRect();model.focus(e.clientX-r.left,e.clientY-r.top)});\n' +
-      '    canvas.addEventListener("pointerleave",function(){model.focus(0,0)});\n' +
+      '(function(){\n' +
+      'var b="' + apiBase + '";\n' +
+      'function ls(u,c){var s=document.createElement("script");s.src=u;s.onload=c;document.head.appendChild(s)}\n' +
+      'ls(b+"/live2dcubismcore.min.js",function(){\n' +
+      '  ls(b+"/pixi.min.js",function(){\n' +
+      '    ls(b+"/cubism4.min.js",function(){\n' +
+      '      var cv=document.getElementById("live2d");\n' +
+      '      var app=new PIXI.Application({view:cv,width:300,height:400,backgroundAlpha:0,autoDensity:true,resolution:window.devicePixelRatio||1});\n' +
+      '      PIXI.live2d.Live2DModel.from(b+"/model/' + encodeURIComponent(modelName) + '/' + encodeURIComponent(modelLast) + '.model3.json").then(function(m){\n' +
+      '        var sc=Math.min(300/m.width*0.85,400/m.height*0.85);m.scale.set(sc);m.x=150;m.y=200;app.stage.addChild(m);\n' +
+      '        cv.addEventListener("pointermove",function(e){var r=cv.getBoundingClientRect();m.focus(e.clientX-r.left,e.clientY-r.top)});\n' +
+      '        cv.addEventListener("pointerleave",function(){m.focus(0,0)});\n' +
+      '      });\n' +
+      '    });\n' +
       '  });\n' +
-      '}\n' +
-      '<\/script>\n' +
-      '<script src="' + apiBase + '/live2dcubismcore.min.js"><\/script>\n' +
-      '<script src="' + apiBase + '/pixi.min.js" onload="document.querySelector(\'script[src*=cubism4]\')&&void 0"><\/script>\n' +
-      '<script src="' + apiBase + '/cubism4.min.js" onload="initLive2D4()"><\/script>';
+      '});\n' +
+      '})();\n' +
+      '<\/script>';
   }
 
   function loadUserInfo() {
