@@ -16,15 +16,21 @@ WORKDIR /app
 
 COPY --from=builder /app/node_modules ./node_modules
 
-COPY . .
+COPY docker-entrypoint.sh docker-entrypoint.sh
+RUN chmod +x docker-entrypoint.sh
 
-RUN mkdir -p /app/defaults/api && \
-    cp /app/admin/api/users.json /app/defaults/api/users.json && \
-    mv /app/model_list.json /app/admin/api/model_list.json && \
-    cp /app/admin/api/model_list.json /app/defaults/api/model_list.json && \
-    ln -s /app/admin/api/model_list.json /app/model_list.json && \
-    chmod +x /app/docker-entrypoint.sh && \
+COPY admin/ admin/
+
+RUN rm -f admin/api/users.json admin/api/rate_limit.json admin/api/model_list.json && \
+    mkdir -p /app/defaults/api && \
+    node -e "var b=require('bcryptjs');var h=b.hashSync('admin123',12);var d={users:{admin:{username:'admin',password_hash:h,role:'admin',created_at:new Date().toISOString(),failed_attempts:0,locked_until:null}},reset_tokens:{}};require('fs').writeFileSync('/app/defaults/api/users.json',JSON.stringify(d,null,4));" && \
+    echo '{"models":[],"messages":[]}' > /app/defaults/api/model_list.json && \
+    mkdir -p /app/model && \
+    ln -sf /app/admin/api/model_list.json /app/model_list.json && \
     chown -R appuser:appuser /app
+
+COPY add/ add/
+COPY get/ get/
 
 EXPOSE 8080
 

@@ -94,7 +94,7 @@ var Login = (function () {
     clearLoginError();
 
     if (!username) {
-      showError('请输入用户名或邮箱');
+      showError('请输入用户名');
       return;
     }
     if (!password) {

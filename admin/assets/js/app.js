@@ -590,13 +590,13 @@ var App = (function () {
 
   function getCodeTemplate4(modelName, modelLast, apiBase) {
     return '<!-- Live2D \u770b\u677f\u5a18 - ' + modelName + ' (Cubism 4) -->\n' +
-      '<!-- \u4f9d\u8d56\uff1aPixiJS v7 + Cubism 4 Runtime -->\n' +
+      '<!-- \u4f9d\u8d56\uff1aPixiJS v6 + Cubism 4 Runtime -->\n' +
       '\n' +
       '<canvas id="live2d" width="300" height="400"></canvas>\n' +
       '\n' +
-      '<script src="https://cdn.jsdelivr.net/npm/pixi.js@7/dist/pixi.min.js"><\/script>\n' +
-      '<script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"><\/script>\n' +
-      '<script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism4.min.js"><\/script>\n' +
+      '<script src="' + apiBase + '/live2dcubismcore.min.js"><\/script>\n' +
+      '<script src="' + apiBase + '/pixi.min.js"><\/script>\n' +
+      '<script src="' + apiBase + '/cubism4.min.js"><\/script>\n' +
       '<script>\n' +
       '(function() {\n' +
       '  var canvas = document.getElementById(\'live2d\');\n' +
@@ -695,7 +695,7 @@ var App = (function () {
     document.getElementById('settings-current-password').value = '';
     document.getElementById('settings-new-password').value = '';
     document.getElementById('settings-new-password-confirm').value = '';
-    document.getElementById('settings-email').value = '';
+    document.getElementById('settings-new-username').value = '';
     document.getElementById('settings-error').style.display = 'none';
     document.getElementById('settings-success').style.display = 'none';
     document.getElementById('settings-pw-error').style.display = 'none';
@@ -703,9 +703,9 @@ var App = (function () {
 
     Live2DAdminAPI.getStatus()
       .then(function (res) {
-        var emailEl = document.getElementById('settings-email');
-        if (emailEl && res.data && res.data.email) {
-          emailEl.value = res.data.email;
+        var usernameEl = document.getElementById('settings-new-username');
+        if (usernameEl && res.data && res.data.username) {
+          usernameEl.value = res.data.username;
         }
       })
       .catch(function () {});
@@ -715,7 +715,7 @@ var App = (function () {
 
   function doUpdateProfile() {
     var currentPassword = document.getElementById('settings-current-password').value;
-    var email = document.getElementById('settings-email').value.trim();
+    var newUsername = document.getElementById('settings-new-username').value.trim();
     var errEl = document.getElementById('settings-error');
     var okEl = document.getElementById('settings-success');
 
@@ -726,14 +726,22 @@ var App = (function () {
       if (errEl) { errEl.textContent = '请输入当前密码'; errEl.style.display = 'block'; }
       return;
     }
-    if (!email) {
-      if (errEl) { errEl.textContent = '请输入邮箱'; errEl.style.display = 'block'; }
+    if (!newUsername) {
+      if (errEl) { errEl.textContent = '请输入新用户名'; errEl.style.display = 'block'; }
+      return;
+    }
+    if (newUsername.length < 2) {
+      if (errEl) { errEl.textContent = '用户名至少 2 个字符'; errEl.style.display = 'block'; }
+      return;
+    }
+    if (!/^[a-zA-Z0-9_\u4e00-\u9fff]+$/.test(newUsername)) {
+      if (errEl) { errEl.textContent = '用户名只能包含字母、数字、下划线和中文'; errEl.style.display = 'block'; }
       return;
     }
 
-    Live2DAdminAPI.updateProfile(currentPassword, email)
+    Live2DAdminAPI.updateProfile(currentPassword, newUsername)
       .then(function () {
-        if (okEl) { okEl.textContent = '邮箱已更新'; okEl.style.display = 'block'; }
+        if (okEl) { okEl.textContent = '用户名已更新'; okEl.style.display = 'block'; }
         loadUserInfo();
       })
       .catch(function (err) {

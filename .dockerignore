@@ -11,3 +11,7 @@ docker-compose*.yml
 Dockerfile
 .dockerignore
 .github/
+model/
+admin/api/users.json
+admin/api/rate_limit.json
+admin/api/model_list.json

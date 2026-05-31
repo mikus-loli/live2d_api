@@ -215,7 +215,7 @@
     <div class="modal" id="modal-settings">
         <h3 class="modal-title">账号<span class="accent">设置</span></h3>
         <div class="settings-tabs">
-            <button class="settings-tab active" data-tab="profile" onclick="document.getElementById('settings-tab-profile').style.display='';document.getElementById('settings-tab-password').style.display='none';this.classList.add('active');this.nextElementSibling.classList.remove('active')">修改邮箱</button>
+            <button class="settings-tab active" data-tab="profile" onclick="document.getElementById('settings-tab-profile').style.display='';document.getElementById('settings-tab-password').style.display='none';this.classList.add('active');this.nextElementSibling.classList.remove('active')">修改用户名</button>
             <button class="settings-tab" data-tab="password" onclick="document.getElementById('settings-tab-password').style.display='';document.getElementById('settings-tab-profile').style.display='none';this.classList.add('active');this.previousElementSibling.classList.remove('active')">修改密码</button>
         </div>
 
@@ -228,10 +228,10 @@
                     <input type="password" class="form-input" id="settings-current-password" placeholder="输入当前密码验证身份" required>
                 </div>
                 <div class="form-group">
-                    <label class="form-label">邮箱</label>
-                    <input type="email" class="form-input" id="settings-email" placeholder="新邮箱地址" required>
+                    <label class="form-label">新用户名</label>
+                    <input type="text" class="form-input" id="settings-new-username" placeholder="字母、数字、下划线或中文" required>
                 </div>
-                <button type="submit" class="btn btn-glow" style="width:100%">更新邮箱</button>
+                <button type="submit" class="btn btn-glow" style="width:100%">更新用户名</button>
             </form>
         </div>
 
@@ -259,11 +259,11 @@
         </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/pixi.js@7/dist/pixi.min.js"></script>
+    <script src="assets/js/pixi.min.js"></script>
     <script src="assets/js/api.js"></script>
     <script src="assets/js/live2d.min.js"></script>
-    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism4.min.js"></script>
+    <script src="assets/js/live2dcubismcore.min.js"></script>
+    <script src="assets/js/cubism4.min.js"></script>
     <script src="assets/js/components.js"></script>
     <script src="assets/js/live2d.js"></script>
     <script src="assets/js/app.js"></script>

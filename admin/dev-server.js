@@ -256,7 +256,7 @@ function getSession(req) {
 function createSession(res, user) {
   var token = generateToken();
   sessions[token] = {
-    user: { username: user.username, role: user.role, email: user.email },
+    user: { username: user.username, role: user.role },
     created: Date.now(),
   };
   res.setHeader('Set-Cookie',
@@ -343,7 +343,7 @@ function handleStatus(req, res) {
   if (req.method !== 'GET') return jsonRes(res, { success: false, data: null, message: 'Method not allowed' }, 405);
   var user = getSession(req);
   if (!user) return jsonRes(res, { success: false, data: null, message: '未登录' });
-  jsonRes(res, { success: true, data: { username: user.username, role: user.role, email: user.email } });
+  jsonRes(res, { success: true, data: { username: user.username, role: user.role } });
 }
 
 function handleChangePassword(req, res) {
@@ -384,14 +384,17 @@ function handleUpdateProfile(req, res) {
     var input;
     try { input = JSON.parse(body); } catch (e) { return jsonRes(res, { success: false, data: null, message: 'Invalid JSON' }); }
 
-    var email = (input.email || '').trim();
+    var newUsername = (input.new_username || '').trim();
     var currentPassword = input.current_password || '';
 
     if (!currentPassword) return jsonRes(res, { success: false, data: null, message: '请输入当前密码' });
-    if (!email) return jsonRes(res, { success: false, data: null, message: '请输入邮箱' });
+    if (!newUsername) return jsonRes(res, { success: false, data: null, message: '请输入新用户名' });
+    if (newUsername.length < 2) return jsonRes(res, { success: false, data: null, message: '用户名至少 2 个字符' });
+    if (!/^[a-zA-Z0-9_\u4e00-\u9fff]+$/.test(newUsername)) return jsonRes(res, { success: false, data: null, message: '用户名只能包含字母、数字、下划线和中文' });
 
     var data = loadUsers();
-    var userData = data.users[user.username];
+    var oldUsername = user.username;
+    var userData = data.users[oldUsername];
     if (!userData) return jsonRes(res, { success: false, data: null, message: '用户不存在' });
 
     var bcryptjs = require('bcryptjs');
@@ -399,13 +402,21 @@ function handleUpdateProfile(req, res) {
       return jsonRes(res, { success: false, data: null, message: '当前密码错误' });
     }
 
-    userData.email = email;
+    if (newUsername !== oldUsername && data.users[newUsername]) {
+      return jsonRes(res, { success: false, data: null, message: '该用户名已被占用' });
+    }
+
+    if (newUsername !== oldUsername) {
+      data.users[newUsername] = userData;
+      data.users[newUsername].username = newUsername;
+      delete data.users[oldUsername];
+    }
     saveUsers(data);
 
     var sessionUser = getSession(req);
-    if (sessionUser) sessionUser.email = email;
+    if (sessionUser) sessionUser.username = newUsername;
 
-    jsonRes(res, { success: true, data: { email: email }, message: '设置已更新' });
+    jsonRes(res, { success: true, data: { username: newUsername }, message: '用户名已更新' });
   });
 }
 
@@ -443,6 +454,287 @@ try {
     broadcastSSE({ type: 'models_updated' });
   });
 } catch (e) {}
+
+var UPLOAD_MAX_SIZE = 50 * 1024 * 1024;
+var ALLOWED_EXTENSIONS = ['moc', 'moc3', 'json', 'mtn', 'png', 'jpg', 'avif'];
+
+function validateExtension(filename) {
+  if (filename.indexOf('.exp3.json') >= 0) return true;
+  var ext = path.extname(filename).toLowerCase().replace('.', '');
+  return ALLOWED_EXTENSIONS.indexOf(ext) >= 0;
+}
+
+function parseMultipart(req, callback) {
+  var contentType = req.headers['content-type'] || '';
+  var boundaryMatch = contentType.match(/boundary=(?:"([^"]+)"|([^\s;]+))/);
+  if (!boundaryMatch) return callback(new Error('Invalid content-type'));
+
+  var boundary = '--' + (boundaryMatch[1] || boundaryMatch[2]);
+  var parts = [];
+  var buffers = [];
+  var totalLength = 0;
+
+  req.on('data', function (chunk) {
+    totalLength += chunk.length;
+    if (totalLength > UPLOAD_MAX_SIZE + 1024 * 1024) {
+      req.destroy();
+      callback(new Error('File size exceeds maximum allowed size'));
+      return;
+    }
+    buffers.push(chunk);
+  });
+
+  req.on('end', function () {
+    var fullBuffer = Buffer.concat(buffers, totalLength);
+    var boundaryBuf = Buffer.from(boundary);
+    var start = 0;
+
+    while (start < fullBuffer.length) {
+      var bIdx = fullBuffer.indexOf(boundaryBuf, start);
+      if (bIdx < 0) break;
+
+      var nextBIdx = fullBuffer.indexOf(boundaryBuf, bIdx + boundaryBuf.length);
+      if (nextBIdx < 0) break;
+
+      var partData = fullBuffer.slice(bIdx + boundaryBuf.length, nextBIdx);
+      if (partData.length > 0 && partData[0] === 0x0d) partData = partData.slice(2);
+
+      var headerEnd = partData.indexOf('\r\n\r\n');
+      if (headerEnd < 0) { start = nextBIdx; continue; }
+
+      var headerStr = partData.slice(0, headerEnd).toString('utf-8');
+      var body = partData.slice(headerEnd + 4);
+      if (body.length >= 2 && body[body.length - 2] === 0x0d && body[body.length - 1] === 0x0a) {
+        body = body.slice(0, -2);
+      }
+
+      var nameMatch = headerStr.match(/name="([^"]+)"/);
+      var filenameMatch = headerStr.match(/filename="([^"]+)"/);
+      if (!nameMatch) { start = nextBIdx; continue; }
+
+      parts.push({
+        name: nameMatch[1],
+        filename: filenameMatch ? filenameMatch[1] : null,
+        data: body,
+        value: filenameMatch ? null : body.toString('utf-8'),
+      });
+
+      start = nextBIdx;
+    }
+
+    callback(null, parts);
+  });
+
+  req.on('error', function (e) { callback(e); });
+}
+
+function extractZipInMemory(zipPath, destDir) {
+  var AdmZip;
+  try { AdmZip = require('adm-zip'); } catch (e) { return false; }
+
+  var zip = new AdmZip(zipPath);
+  var entries = zip.getEntries();
+
+  entries.forEach(function (entry) {
+    if (entry.isDirectory) return;
+    var entryName = entry.entryName;
+    if (!validateExtension(entryName)) return;
+
+    var destPath = path.join(destDir, entryName);
+    var destSubDir = path.dirname(destPath);
+    if (!fs.existsSync(destSubDir)) {
+      fs.mkdirSync(destSubDir, { recursive: true });
+    }
+    fs.writeFileSync(destPath, entry.getData());
+  });
+
+  return true;
+}
+
+function extractZipManual(zipPath, destDir) {
+  var zlib = require('zlib');
+
+  var buf = fs.readFileSync(zipPath);
+  var sig = buf.readUInt32LE(0);
+  if (sig !== 0x04034b50) return false;
+
+  var offset = 0;
+  while (offset < buf.length - 4) {
+    var sig2 = buf.readUInt32LE(offset);
+    if (sig2 !== 0x04034b50) break;
+
+    var fnLen = buf.readUInt16LE(offset + 26);
+    var extraLen = buf.readUInt16LE(offset + 28);
+    var compMethod = buf.readUInt16LE(offset + 8);
+    var compSize = buf.readUInt32LE(offset + 18);
+    var uncompSize = buf.readUInt32LE(offset + 22);
+    var fname = buf.slice(offset + 30, offset + 30 + fnLen).toString('utf-8');
+
+    if (fname.indexOf('__MACOSX') >= 0 || fname.indexOf('.DS_Store') >= 0 || fname.charAt(fname.length - 1) === '/') {
+      offset += 30 + fnLen + extraLen + compSize;
+      continue;
+    }
+
+    if (!validateExtension(fname)) {
+      offset += 30 + fnLen + extraLen + compSize;
+      continue;
+    }
+
+    var dataStart = offset + 30 + fnLen + extraLen;
+    var compData = buf.slice(dataStart, dataStart + compSize);
+    var fileData;
+
+    if (compMethod === 0) {
+      fileData = compData;
+    } else if (compMethod === 8) {
+      fileData = zlib.inflateRawSync(compData);
+    } else {
+      offset += 30 + fnLen + extraLen + compSize;
+      continue;
+    }
+
+    var destPath = path.join(destDir, fname);
+    var destSubDir = path.dirname(destPath);
+    if (!fs.existsSync(destSubDir)) {
+      fs.mkdirSync(destSubDir, { recursive: true });
+    }
+    fs.writeFileSync(destPath, fileData);
+
+    offset += 30 + fnLen + extraLen + compSize;
+  }
+
+  return true;
+}
+
+function generateIndexJson(modelDir) {
+  var files = scanDir(modelDir);
+  var textures = [];
+  var mocFile = null;
+  var physicsFile = null;
+
+  files.forEach(function (f) {
+    var ext = path.extname(f.name).toLowerCase().replace('.', '');
+    if (ext === 'png' || ext === 'jpg') textures.push(f.name);
+    if (ext === 'moc' && !mocFile) mocFile = f.name;
+    if (f.name === 'physics.json' && !physicsFile) physicsFile = f.name;
+  });
+
+  var index = {
+    version: '1.0.0',
+    model: mocFile || 'model.moc',
+    textures: textures,
+  };
+  if (physicsFile) index.physics = physicsFile;
+  index.layout = { center_x: 0.0, center_y: -0.05, width: 2.0 };
+
+  fs.writeFileSync(path.join(modelDir, 'index.json'), JSON.stringify(index, null, 4));
+  return index;
+}
+
+function handleUpload(req, res) {
+  if (req.method !== 'POST') return jsonRes(res, { success: false, data: null, message: 'Method not allowed' }, 405);
+
+  var contentType = req.headers['content-type'] || '';
+  if (contentType.indexOf('multipart/form-data') < 0) {
+    return jsonRes(res, { success: false, data: null, message: 'Content-Type must be multipart/form-data' });
+  }
+
+  parseMultipart(req, function (err, parts) {
+    if (err) return jsonRes(res, { success: false, data: null, message: err.message });
+
+    var filePart = null;
+    var modelName = '';
+
+    parts.forEach(function (p) {
+      if (p.name === 'file' && p.filename) filePart = p;
+      if (p.name === 'model_name') modelName = (p.value || '').trim();
+    });
+
+    if (!filePart) return jsonRes(res, { success: false, data: null, message: 'No file uploaded' });
+    if (!modelName) return jsonRes(res, { success: false, data: null, message: 'model_name is required' });
+    if (modelName.indexOf('/') < 0) return jsonRes(res, { success: false, data: null, message: 'model_name must be in Group/Model format' });
+    if (filePart.data.length > UPLOAD_MAX_SIZE) return jsonRes(res, { success: false, data: null, message: 'File size exceeds maximum allowed size (50MB)' });
+
+    var modelDir = path.join(MODEL_DIR, modelName);
+    var parts2 = modelName.split('/', 2);
+    var groupDir = path.join(MODEL_DIR, parts2[0]);
+
+    if (!fs.existsSync(groupDir)) fs.mkdirSync(groupDir, { recursive: true });
+    if (!fs.existsSync(modelDir)) fs.mkdirSync(modelDir, { recursive: true });
+
+    var originalName = filePart.filename;
+    var ext = path.extname(originalName).toLowerCase().replace('.', '');
+    var uploadedFiles = [];
+
+    if (ext === 'zip') {
+      var tmpDir = path.join(require('os').tmpdir(), 'live2d_upload_' + Date.now() + '_' + Math.random().toString(36).slice(2));
+      fs.mkdirSync(tmpDir, { recursive: true });
+
+      var tmpZip = path.join(tmpDir, 'upload.zip');
+      fs.writeFileSync(tmpZip, filePart.data);
+
+      var extractOk = extractZipInMemory(tmpZip, tmpDir + '_extracted');
+      if (!extractOk) {
+        try { extractOk = extractZipManual(tmpZip, tmpDir + '_extracted'); } catch (e) { extractOk = false; }
+      }
+      if (!extractOk) {
+        try { fs.rmSync ? fs.rmSync(tmpDir, { recursive: true }) : rmdirRecursiveSync(tmpDir); } catch (e) {}
+        try { fs.rmSync ? fs.rmSync(tmpDir + '_extracted', { recursive: true }) : rmdirRecursiveSync(tmpDir + '_extracted'); } catch (e) {}
+        return jsonRes(res, { success: false, data: null, message: 'Failed to extract zip file. Install adm-zip for zip support: npm install adm-zip' });
+      }
+
+      var extractDir = tmpDir + '_extracted';
+      var items = fs.readdirSync(extractDir);
+      var singleDir = null;
+      items.forEach(function (item) {
+        var itemPath = path.join(extractDir, item);
+        if (fs.statSync(itemPath).isDirectory() && !singleDir) singleDir = itemPath;
+      });
+      if (singleDir && items.length <= 3) extractDir = singleDir;
+
+      var zipFiles = scanDir(extractDir);
+      zipFiles.forEach(function (zf) {
+        if (!validateExtension(zf.name)) return;
+        var srcPath = path.join(extractDir, zf.name);
+        var destPath = path.join(modelDir, zf.name);
+        var destSubDir = path.dirname(destPath);
+        if (!fs.existsSync(destSubDir)) fs.mkdirSync(destSubDir, { recursive: true });
+        fs.copyFileSync(srcPath, destPath);
+        uploadedFiles.push(zf.name);
+      });
+
+      try { fs.rmSync ? fs.rmSync(tmpDir, { recursive: true }) : rmdirRecursiveSync(tmpDir); } catch (e) {}
+      try { fs.rmSync ? fs.rmSync(tmpDir + '_extracted', { recursive: true }) : rmdirRecursiveSync(tmpDir + '_extracted'); } catch (e) {}
+    } else {
+      if (!validateExtension(originalName)) {
+        return jsonRes(res, { success: false, data: null, message: 'File type not allowed: ' + ext });
+      }
+      var destPath = path.join(modelDir, path.basename(originalName));
+      fs.writeFileSync(destPath, filePart.data);
+      uploadedFiles.push(path.basename(originalName));
+    }
+
+    var indexPath = path.join(modelDir, 'index.json');
+    var indexGenerated = false;
+    if (!fs.existsSync(indexPath) && uploadedFiles.length > 0) {
+      generateIndexJson(modelDir);
+      indexGenerated = true;
+    }
+
+    var allFiles = scanDir(modelDir);
+
+    jsonRes(res, {
+      success: true,
+      data: {
+        model_name: modelName,
+        uploaded_files: uploadedFiles,
+        all_files: allFiles,
+        index_generated: indexGenerated,
+      },
+      message: 'File(s) uploaded successfully',
+    });
+  });
+}
 
 function handleAPI(req, res, urlPath) {
   var endpoint = urlPath.replace('/admin/api/', '').replace('.php', '');
@@ -672,7 +964,7 @@ function handleAPI(req, res, urlPath) {
   }
 
   if (endpoint === 'upload') {
-    return jsonRes(res, { success: false, data: null, message: 'Upload requires PHP server. Please use Apache/Nginx for upload functionality.' });
+    return handleUpload(req, res);
   }
 
   jsonRes(res, { success: false, data: null, message: 'Unknown endpoint' }, 404);
@@ -782,6 +1074,45 @@ var server = http.createServer(function (req, res) {
         'Cache-Control': 'public, max-age=86400',
       });
       fs.createReadStream(sdkPath).pipe(res);
+      return;
+    }
+  }
+
+  if (urlPath === '/live2dcubismcore.min.js') {
+    var corePath = path.join(BASE, 'admin', 'assets', 'js', 'live2dcubismcore.min.js');
+    if (fs.existsSync(corePath)) {
+      res.writeHead(200, {
+        'Content-Type': 'application/javascript; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=86400',
+      });
+      fs.createReadStream(corePath).pipe(res);
+      return;
+    }
+  }
+
+  if (urlPath === '/cubism4.min.js') {
+    var c4Path = path.join(BASE, 'admin', 'assets', 'js', 'cubism4.min.js');
+    if (fs.existsSync(c4Path)) {
+      res.writeHead(200, {
+        'Content-Type': 'application/javascript; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=86400',
+      });
+      fs.createReadStream(c4Path).pipe(res);
+      return;
+    }
+  }
+
+  if (urlPath === '/pixi.min.js') {
+    var pixiPath = path.join(BASE, 'admin', 'assets', 'js', 'pixi.min.js');
+    if (fs.existsSync(pixiPath)) {
+      res.writeHead(200, {
+        'Content-Type': 'application/javascript; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=86400',
+      });
+      fs.createReadStream(pixiPath).pipe(res);
       return;
     }
   }
