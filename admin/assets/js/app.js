@@ -578,7 +578,7 @@ var App = (function () {
   function getCodeTemplate2(modelName, apiBase) {
     return '<canvas id="live2d" width="300" height="400"></canvas>\n' +
       '<script>\n' +
-      '(function(){var s=document.createElement("script");s.src="' + apiBase + '/live2d.min.js";s.onload=function(){loadlive2d("live2d","' + apiBase + '/get/?name=' + encodeURIComponent(modelName) + '")};document.head.appendChild(s)})();\n' +
+      '(function(){var s=document.createElement("script");s.src="' + apiBase + '/live2d.min.js";s.onload=function(){loadlive2d("live2d","' + apiBase + '/model/' + encodeURIComponent(modelName) + '/index.json")};document.head.appendChild(s)})();\n' +
       '<\/script>';
   }
 

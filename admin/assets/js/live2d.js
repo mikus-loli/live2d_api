@@ -92,7 +92,7 @@ var Live2DPreview = (function () {
       showFallback('缺少 Live2D Cubism 2 库');
       return;
     }
-    var url = '../get/?name=' + encodeURIComponent(modelName);
+    var url = '../model/' + encodeURIComponent(modelName) + '/index.json';
     try {
       loadlive2d('live2d-canvas', url);
     } catch (e) {
@@ -243,7 +243,7 @@ var Live2DPreview = (function () {
 
     if (typeof loadlive2d === 'function') {
       try {
-        loadlive2d('live2d-canvas', '../get/?id=' + modelId + '-' + textureId);
+        loadlive2d('live2d-canvas', '../model/' + encodeURIComponent(modelName) + '/index.json');
       } catch (e) {
         UI.toast('Live2D 加载错误: ' + e.message, 'error');
         showFallback('Cubism 2 加载失败');
@@ -265,22 +265,15 @@ var Live2DPreview = (function () {
     }
 
     currentTextureId++;
-    var url = '../get/?name=' + encodeURIComponent(currentModel) + '&textures_id=' + currentTextureId;
+    var url = '../model/' + encodeURIComponent(currentModel) + '/index.json';
 
     if (typeof loadlive2d === 'function') {
       try {
-        fetch(url)
-          .then(function (r) { return r.json(); })
-          .then(function () {
-            loadlive2d('live2d-canvas', url);
-          })
-          .catch(function () {
-            currentTextureId = 0;
-            loadlive2d('live2d-canvas', '../get/?name=' + encodeURIComponent(currentModel));
-            UI.toast('已回到首个纹理', 'info');
-          });
+        loadlive2d('live2d-canvas', url);
       } catch (e) {
-        UI.toast('切换错误: ' + e.message, 'error');
+        currentTextureId = 0;
+        loadlive2d('live2d-canvas', '../model/' + encodeURIComponent(currentModel) + '/index.json');
+        UI.toast('已回到首个纹理', 'info');
       }
     } else {
       UI.toast('Live2D 库未加载', 'info');
