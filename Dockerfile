@@ -16,7 +16,13 @@ COPY --from=builder /app/node_modules ./node_modules
 
 COPY . .
 
-RUN chown -R appuser:appuser /app
+RUN mkdir -p /app/defaults/api && \
+    cp /app/admin/api/users.json /app/defaults/api/users.json && \
+    mv /app/model_list.json /app/admin/api/model_list.json && \
+    cp /app/admin/api/model_list.json /app/defaults/api/model_list.json && \
+    ln -s /app/admin/api/model_list.json /app/model_list.json && \
+    chmod +x /app/docker-entrypoint.sh && \
+    chown -R appuser:appuser /app
 
 USER appuser
 
@@ -25,4 +31,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD node -e "require('http').get('http://localhost:8080/admin/',function(r){process.exit(r.statusCode===200?0:1)})"
 
-CMD ["node", "admin/dev-server.js"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
