@@ -576,14 +576,16 @@ var App = (function () {
   }
 
   function getCodeTemplate2(modelName, apiBase) {
-    return '<canvas id="live2d" width="300" height="400"></canvas>\n' +
+    return '<style>#live2d{position:fixed;right:0;bottom:0;z-index:99999;pointer-events:none}</style>\n' +
+      '<canvas id="live2d" width="300" height="400"></canvas>\n' +
       '<script>\n' +
       '(function(){var s=document.createElement("script");s.src="' + apiBase + '/live2d.min.js";s.onload=function(){loadlive2d("live2d","' + apiBase + '/model/' + encodeURIComponent(modelName) + '/index.json")};document.head.appendChild(s)})();\n' +
       '<\/script>';
   }
 
   function getCodeTemplate4(modelName, modelLast, apiBase) {
-    return '<canvas id="live2d" width="300" height="400"></canvas>\n' +
+    return '<style>#live2d{position:fixed;right:0;bottom:0;z-index:99999;pointer-events:none}</style>\n' +
+      '<canvas id="live2d" width="300" height="400"></canvas>\n' +
       '<script>\n' +
       '(function(){\n' +
       'var b="' + apiBase + '";\n' +
