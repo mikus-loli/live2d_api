@@ -7,7 +7,8 @@ var App = (function () {
   var currentDetailModel = null;
   var generatedCode2 = '';
   var generatedCode4 = '';
-  var activeCodeTab = 'cubism2';
+  var generatedCodeAuto = '';
+  var activeCodeTab = 'autoload';
   var currentCodeModel = '';
 
   function init() {
@@ -516,11 +517,12 @@ var App = (function () {
 
         generatedCode2 = getCodeTemplate2(modelName, apiBase);
         generatedCode4 = getCodeTemplate4(modelName, modelLast, apiBase);
+        generatedCodeAuto = getCodeTemplateAuto(modelName, apiBase);
 
         if (isCubism4) {
           activeCodeTab = 'cubism4';
         } else {
-          activeCodeTab = 'cubism2';
+          activeCodeTab = 'autoload';
         }
 
         switchCodeTab(activeCodeTab);
@@ -529,7 +531,8 @@ var App = (function () {
       .catch(function () {
         generatedCode2 = getCodeTemplate2(modelName, apiBase);
         generatedCode4 = getCodeTemplate4(modelName, modelLast, apiBase);
-        activeCodeTab = 'cubism2';
+        generatedCodeAuto = getCodeTemplateAuto(modelName, apiBase);
+        activeCodeTab = 'autoload';
         switchCodeTab(activeCodeTab);
         UI.openModal('modal-generate');
       });
@@ -540,7 +543,9 @@ var App = (function () {
     var content = document.getElementById('generate-code-content');
     if (!content) return;
 
-    content.textContent = tab === 'cubism4' ? generatedCode4 : generatedCode2;
+    if (tab === 'cubism4') content.textContent = generatedCode4;
+    else if (tab === 'cubism2') content.textContent = generatedCode2;
+    else content.textContent = generatedCodeAuto;
 
     var tabBtns = document.querySelectorAll('.code-tab');
     for (var i = 0; i < tabBtns.length; i++) {
@@ -575,17 +580,23 @@ var App = (function () {
     document.body.removeChild(ta);
   }
 
+  var LIVE2D_EMBED_PREFIX = '<style>#live2d{position:fixed;right:0;bottom:0;z-index:99999;pointer-events:none}</style>\n' +
+    '<canvas id="live2d" width="300" height="400"></canvas>\n';
+
+  function getCodeTemplateAuto(modelName, apiBase) {
+    return '<script src="' + apiBase + '/autoload.js"><\/script>\n' +
+      '<script>live2dWidget.init({apiBase:"' + apiBase + '"})<\/script>';
+  }
+
   function getCodeTemplate2(modelName, apiBase) {
-    return '<style>#live2d{position:fixed;right:0;bottom:0;z-index:99999;pointer-events:none}</style>\n' +
-      '<canvas id="live2d" width="300" height="400"></canvas>\n' +
+    return LIVE2D_EMBED_PREFIX +
       '<script>\n' +
       '(function(){var s=document.createElement("script");s.src="' + apiBase + '/live2d.min.js";s.onload=function(){loadlive2d("live2d","' + apiBase + '/model/' + encodeURIComponent(modelName) + '/index.json")};document.head.appendChild(s)})();\n' +
       '<\/script>';
   }
 
   function getCodeTemplate4(modelName, modelLast, apiBase) {
-    return '<style>#live2d{position:fixed;right:0;bottom:0;z-index:99999;pointer-events:none}</style>\n' +
-      '<canvas id="live2d" width="300" height="400"></canvas>\n' +
+    return LIVE2D_EMBED_PREFIX +
       '<script>\n' +
       '(function(){\n' +
       'var b="' + apiBase + '";\n' +

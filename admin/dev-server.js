@@ -970,6 +970,35 @@ function handleAPI(req, res, urlPath) {
   jsonRes(res, { success: false, data: null, message: 'Unknown endpoint' }, 404);
 }
 
+function handlePublicModels(req, res) {
+  var list = JSON.parse(fs.readFileSync(MODEL_LIST_FILE, 'utf-8'));
+  var models = list.models;
+  var messages = list.messages;
+  var result = [];
+  models.forEach(function (entry, idx) {
+    var message = messages[idx] || '';
+    if (Array.isArray(entry)) {
+      var group = entry[0];
+      var subModels = [];
+      for (var s = 1; s < entry.length; s++) {
+        var subName = entry[s];
+        var subDir = path.join(MODEL_DIR, subName);
+        if (!fs.existsSync(subDir)) return;
+        var subInfo = getModelInfo(subName);
+        subModels.push({ name: subName, has_moc: subInfo.has_moc });
+      }
+      if (subModels.length === 0) return;
+      result.push({ name: group, message: message, is_multi: true, sub_models: subModels, has_moc: true });
+    } else {
+      var modelDir = path.join(MODEL_DIR, entry);
+      if (!fs.existsSync(modelDir)) return;
+      var info = getModelInfo(entry);
+      result.push({ name: entry, message: message, is_multi: false, has_moc: info.has_moc });
+    }
+  });
+  jsonRes(res, { success: true, data: result });
+}
+
 function handleGetModel(req, res, params) {
   var modelName = params.get('name');
   var modelId = params.get('id');
@@ -1069,6 +1098,10 @@ var server = http.createServer(function (req, res) {
     return handleGetModel(req, res, new URL(req.url, 'http://localhost').searchParams);
   }
 
+  if (urlPath === '/api/models') {
+    return handlePublicModels(req, res);
+  }
+
   if (urlPath === '/live2d.min.js') {
     var sdkPath = path.join(BASE, 'admin', 'assets', 'js', 'live2d.min.js');
     if (fs.existsSync(sdkPath)) {
@@ -1117,6 +1150,19 @@ var server = http.createServer(function (req, res) {
         'Cache-Control': 'public, max-age=86400',
       });
       fs.createReadStream(pixiPath).pipe(res);
+      return;
+    }
+  }
+
+  if (urlPath === '/autoload.js') {
+    var alPath = path.join(BASE, 'admin', 'assets', 'js', 'autoload.js');
+    if (fs.existsSync(alPath)) {
+      res.writeHead(200, {
+        'Content-Type': 'application/javascript; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=3600',
+      });
+      fs.createReadStream(alPath).pipe(res);
       return;
     }
   }
