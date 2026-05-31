@@ -1,6 +1,4 @@
 <?php
-isset($_GET['id']) ? $id = $_GET['id'] : exit('error');
-
 require '../tools/modelList.php';
 require '../tools/modelTextures.php';
 require '../tools/jsonCompatible.php';
@@ -9,21 +7,96 @@ $modelList = new modelList();
 $modelTextures = new modelTextures();
 $jsonCompatible = new jsonCompatible();
 
-$id = explode('-', $id);
-$modelId = (int)$id[0];
-$modelTexturesId = isset($id[1]) ? (int)$id[1] : 0;
+function find_model3_json($dir) {
+    $items = scandir($dir);
+    foreach ($items as $item) {
+        if (preg_match('/\.model3\.json$/i', $item)) {
+            return $dir . '/' . $item;
+        }
+    }
+    return null;
+}
 
-$modelName = $modelList->id_to_name($modelId);
+function load_config($dir) {
+    $indexPath = $dir . '/index.json';
+    if (file_exists($indexPath)) {
+        return array(json_decode(file_get_contents($indexPath), true), 'index.json');
+    }
+    $model3Path = find_model3_json($dir);
+    if ($model3Path !== null) {
+        $json = json_decode(file_get_contents($model3Path), true);
+        if (isset($json['FileReferences'])) {
+            $converted = array();
+            $ref = $json['FileReferences'];
+            if (isset($ref['Moc'])) $converted['model'] = $ref['Moc'];
+            if (isset($ref['Textures'])) $converted['textures'] = $ref['Textures'];
+            if (isset($ref['Physics'])) $converted['physics'] = $ref['Physics'];
+            if (isset($ref['Pose'])) $converted['pose'] = $ref['Pose'];
+            if (isset($ref['Motions']) && is_array($ref['Motions'])) {
+                $motions = array();
+                foreach ($ref['Motions'] as $groupName => $motionList) {
+                    $motions[$groupName] = array();
+                    foreach ($motionList as $m) {
+                        $entry = array();
+                        if (isset($m['File'])) $entry['file'] = $m['File'];
+                        if (isset($m['Sound'])) $entry['sound'] = $m['Sound'];
+                        $motions[$groupName][] = $entry;
+                    }
+                }
+                $converted['motions'] = $motions;
+            }
+            if (isset($ref['Expressions']) && is_array($ref['Expressions'])) {
+                $exprs = array();
+                foreach ($ref['Expressions'] as $expr) {
+                    $entry = array();
+                    if (isset($expr['File'])) $entry['file'] = $expr['File'];
+                    if (isset($expr['Name'])) $entry['name'] = $expr['Name'];
+                    $exprs[] = $entry;
+                }
+                $converted['expressions'] = $exprs;
+            }
+            return array($converted, basename($model3Path));
+        }
+        return array($json, basename($model3Path));
+    }
+    return array(null, null);
+}
 
-if (is_array($modelName)) {
-    $modelName = $modelTexturesId > 0 ? $modelName[$modelTexturesId-1] : $modelName[0];
-    $json = json_decode(file_get_contents('../model/'.$modelName.'/index.json'), 1);
-} else {
-    $json = json_decode(file_get_contents('../model/'.$modelName.'/index.json'), 1);
+if (isset($_GET['name'])) {
+    $modelName = $_GET['name'];
+    $modelTexturesId = isset($_GET['textures_id']) ? (int)$_GET['textures_id'] : 0;
+
+    $dir = '../model/' . $modelName;
+    list($json, $configFile) = load_config($dir);
+    if ($json === null) exit('{"error":"model config not found"}');
+
     if ($modelTexturesId > 0) {
         $modelTexturesName = $modelTextures->get_name($modelName, $modelTexturesId);
         if (isset($modelTexturesName)) $json['textures'] = is_array($modelTexturesName) ? $modelTexturesName : array($modelTexturesName);
     }
+} elseif (isset($_GET['id'])) {
+    $id = explode('-', $_GET['id']);
+    $modelId = (int)$id[0];
+    $modelTexturesId = isset($id[1]) ? (int)$id[1] : 0;
+
+    $modelName = $modelList->id_to_name($modelId);
+
+    if (is_array($modelName)) {
+        $modelName = $modelTexturesId > 0 ? $modelName[$modelTexturesId-1] : $modelName[0];
+        $dir = '../model/' . $modelName;
+        list($json, $configFile) = load_config($dir);
+        if ($json === null) exit('{"error":"model config not found"}');
+    } else {
+        $dir = '../model/' . $modelName;
+        list($json, $configFile) = load_config($dir);
+        if ($json === null) exit('{"error":"model config not found"}');
+        if ($modelTexturesId > 0) {
+            $modelTexturesName = $modelTextures->get_name($modelName, $modelTexturesId);
+            if (isset($modelTexturesName)) $json['textures'] = is_array($modelTexturesName) ? $modelTexturesName : array($modelTexturesName);
+        }
+    }
+} else {
+    exit('error');
 }
 
 foreach ($json['textures'] as $k => $texture)

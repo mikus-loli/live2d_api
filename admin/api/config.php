@@ -1,0 +1,176 @@
+<?php
+
+define('MODEL_DIR', __DIR__ . '/../../model');
+define('MODEL_LIST_FILE', __DIR__ . '/../../model_list.json');
+define('UPLOAD_MAX_SIZE', 50 * 1024 * 1024);
+define('ALLOWED_EXTENSIONS', array('moc', 'moc3', 'json', 'mtn', 'png', 'jpg', 'avif'));
+
+define('USERS_FILE', __DIR__ . '/users.json');
+define('RATE_LIMIT_FILE', __DIR__ . '/rate_limit.json');
+define('MAX_LOGIN_ATTEMPTS', 5);
+define('LOCKOUT_DURATION', 900);
+define('SESSION_LIFETIME', 86400);
+
+header('Access-Control-Allow-Origin: *');
+header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+header('Access-Control-Allow-Headers: Content-Type, Authorization');
+
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    http_response_code(200);
+    exit;
+}
+
+function json_response($success, $data = null, $message = '') {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(array(
+        'success' => $success,
+        'data' => $data,
+        'message' => $message
+    ), JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+function get_model_list() {
+    if (!file_exists(MODEL_LIST_FILE)) {
+        return array('models' => array(), 'messages' => array());
+    }
+    $content = file_get_contents(MODEL_LIST_FILE);
+    return json_decode($content, true);
+}
+
+function save_model_list($list) {
+    file_put_contents(MODEL_LIST_FILE, json_encode($list, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+}
+
+function scan_dir_recursive($dir, $base = '') {
+    $result = array();
+    if (!is_dir($dir)) return $result;
+    $items = scandir($dir);
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') continue;
+        $path = $dir . '/' . $item;
+        $relative = $base === '' ? $item : $base . '/' . $item;
+        if (is_dir($path)) {
+            $result = array_merge($result, scan_dir_recursive($path, $relative));
+        } else {
+            $result[] = array(
+                'name' => $relative,
+                'size' => filesize($path)
+            );
+        }
+    }
+    return $result;
+}
+
+function get_json_input() {
+    $input = file_get_contents('php://input');
+    return json_decode($input, true);
+}
+
+function delete_dir_recursive($dir) {
+    if (!is_dir($dir)) return false;
+    $items = scandir($dir);
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') continue;
+        $path = $dir . '/' . $item;
+        is_dir($path) ? delete_dir_recursive($path) : unlink($path);
+    }
+    return rmdir($dir);
+}
+
+function load_users() {
+    if (!file_exists(USERS_FILE)) {
+        return array('users' => array(), 'reset_tokens' => array());
+    }
+    $content = file_get_contents(USERS_FILE);
+    $data = json_decode($content, true);
+    if (!isset($data['users'])) $data['users'] = array();
+    if (!isset($data['reset_tokens'])) $data['reset_tokens'] = array();
+    return $data;
+}
+
+function save_users($data) {
+    $dir = dirname(USERS_FILE);
+    if (!is_dir($dir)) mkdir($dir, 0755, true);
+    file_put_contents(USERS_FILE, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+}
+
+function find_user($username) {
+    $data = load_users();
+    if (isset($data['users'][$username])) {
+        return $data['users'][$username];
+    }
+    return null;
+}
+
+function check_rate_limit($ip, $action) {
+    $data = array();
+    if (file_exists(RATE_LIMIT_FILE)) {
+        $content = file_get_contents(RATE_LIMIT_FILE);
+        $data = json_decode($content, true);
+        if (!$data) $data = array();
+    }
+
+    $now = time();
+    if (!isset($data[$action])) $data[$action] = array();
+    if (!isset($data[$action][$ip])) $data[$action][$ip] = array('attempts' => 0, 'first_attempt' => 0);
+
+    $entry = &$data[$action][$ip];
+
+    if ($now - $entry['first_attempt'] > 60) {
+        $entry['attempts'] = 1;
+        $entry['first_attempt'] = $now;
+    } else {
+        $entry['attempts']++;
+    }
+
+    file_put_contents(RATE_LIMIT_FILE, json_encode($data, JSON_UNESCAPED_UNICODE));
+    return $entry['attempts'] <= MAX_LOGIN_ATTEMPTS;
+}
+
+function clear_rate_limit($ip, $action) {
+    if (!file_exists(RATE_LIMIT_FILE)) return;
+    $content = file_get_contents(RATE_LIMIT_FILE);
+    $data = json_decode($content, true);
+    if (!$data) return;
+
+    if (isset($data[$action][$ip])) {
+        unset($data[$action][$ip]);
+        file_put_contents(RATE_LIMIT_FILE, json_encode($data, JSON_UNESCAPED_UNICODE));
+    }
+}
+
+function require_auth() {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_set_cookie_params(SESSION_LIFETIME, '/admin/', '', false, true);
+        session_start();
+    }
+
+    if (empty($_SESSION['user']) || empty($_SESSION['user']['username'])) {
+        http_response_code(401);
+        json_response(false, null, '未登录或会话已过期');
+    }
+    return $_SESSION['user'];
+}
+
+function get_client_ip() {
+    if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
+        $ips = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
+        return trim($ips[0]);
+    }
+    if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
+        return $_SERVER['HTTP_CLIENT_IP'];
+    }
+    return $_SERVER['REMOTE_ADDR'];
+}
+
+function generate_reset_token() {
+    return bin2hex(openssl_random_pseudo_bytes(32));
+}
+
+function validate_password_strength($password) {
+    if (strlen($password) < 8) return '密码长度至少为 8 个字符';
+    if (!preg_match('/[A-Z]/', $password) && !preg_match('/[a-z]/', $password)) return '密码必须包含至少一个字母';
+    if (!preg_match('/[0-9]/', $password)) return '密码必须包含至少一个数字';
+    return null;
+}

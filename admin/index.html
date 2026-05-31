@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live2D 管理面板</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Sans+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/admin.css">
+</head>
+<body>
+    <script>
+    (function() {
+      fetch('api/status')
+        .then(function(r) { return r.json(); })
+        .then(function(j) {
+          if (!j.success) window.location.href = 'login.html';
+        })
+        .catch(function() {
+          window.location.href = 'login.html';
+        });
+    })();
+    </script>
+
+    <button class="mobile-menu-btn" onclick="document.querySelector('.sidebar').classList.toggle('mobile-open')">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    </button>
+
+    <div class="app-layout">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <a class="sidebar-logo" href="#">
+                    <div class="sidebar-logo-icon">L2D</div>
+                    <div class="sidebar-logo-text">Live2D <span>管理</span></div>
+                </a>
+                <button class="theme-toggle" onclick="App.toggleTheme()" title="切换主题">
+                    <svg class="theme-icon-dark" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+                    <svg class="theme-icon-light" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                </button>
+            </div>
+            <div class="sidebar-stats">
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-total">0</div>
+                    <div class="stat-label">模型</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-groups">0</div>
+                    <div class="stat-label">分组</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-value" id="stat-textures">0</div>
+                    <div class="stat-label">纹理</div>
+                </div>
+            </div>
+            <nav class="sidebar-nav">
+                <div class="sidebar-section-title">分组</div>
+                <div id="group-list"></div>
+            </nav>
+            <div class="sidebar-footer">
+                <div class="sidebar-user">
+                    <div class="sidebar-user-avatar" id="sidebar-user-avatar"></div>
+                    <div class="sidebar-user-info">
+                        <span class="sidebar-user-name" id="sidebar-user-name"></span>
+                        <span class="sidebar-user-role" id="sidebar-user-role"></span>
+                    </div>
+                </div>
+                <button class="sidebar-logout-btn" onclick="App.doLogout()" title="退出登录">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content" id="main-content">
+            <div class="content-header">
+                <h2 class="content-title">模型列表</h2>
+                <div class="content-actions">
+                    <div class="search-box">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                        <input type="text" id="search-input" placeholder="搜索模型...">
+                    </div>
+                    <button class="btn btn-glow" onclick="App.showUploadModal()">上传模型</button>
+                    <button class="btn btn-outline" onclick="App.showCreateModal()">添加模型</button>
+                </div>
+            </div>
+            <div id="model-grid" class="model-grid">
+                <div class="loading-spinner"><div class="spinner"></div><p>加载中...</p></div>
+            </div>
+        </main>
+    </div>
+
+    <div class="preview-panel" id="preview-panel">
+        <div class="preview-header">
+            <span class="preview-title" id="preview-model-name">预览</span>
+            <button class="preview-close" onclick="Live2DPreview.closePanel()">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+        </div>
+        <div class="preview-canvas-wrap" id="preview-canvas-wrap">
+            <canvas id="live2d-canvas" width="320" height="400"></canvas>
+        </div>
+        <div class="preview-controls">
+            <button class="btn btn-sm btn-outline" onclick="Live2DPreview.switchTexture()">切换纹理</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modal-overlay"></div>
+
+    <div class="modal" id="modal-create">
+        <h3 class="modal-title">添加<span class="accent">模型</span></h3>
+        <div class="form-group">
+            <label class="form-label">模型名称</label>
+            <input type="text" class="form-input" id="create-name" placeholder="分组/模型名">
+            <div class="form-hint">使用 分组/模型名（如 Potion-Maker/Pio）或直接使用目录名（如 六初）</div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">描述</label>
+            <input type="text" class="form-input" id="create-message" placeholder="模型描述信息">
+        </div>
+        <div class="form-group">
+            <button class="btn btn-sm btn-outline" onclick="App.scanUnregistered()">浏览未注册目录</button>
+            <div id="scan-result" class="scan-result" style="display:none"></div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="UI.closeModal('modal-create')">取消</button>
+            <button class="btn btn-glow" onclick="App.doCreate()">添加</button>
+        </div>
+    </div>
+
+    <div class="modal" id="modal-edit">
+        <h3 class="modal-title">编辑<span class="accent">模型</span></h3>
+        <input type="hidden" id="edit-old-name">
+        <div class="form-group">
+            <label class="form-label">模型名称</label>
+            <input type="text" class="form-input" id="edit-new-name" placeholder="分组/模型名">
+        </div>
+        <div class="form-group">
+            <label class="form-label">描述</label>
+            <input type="text" class="form-input" id="edit-message" placeholder="模型描述信息">
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="UI.closeModal('modal-edit')">取消</button>
+            <button class="btn btn-primary" onclick="App.doEdit()">保存</button>
+        </div>
+    </div>
+
+    <div class="modal" id="modal-delete">
+        <h3 class="modal-title">删除<span class="accent">模型</span></h3>
+        <p style="color: var(--text-secondary); margin-bottom: 16px;">确定要删除 <strong id="delete-name" style="color: var(--accent-cyan)"></strong> 吗？</p>
+        <label class="form-checkbox">
+            <input type="checkbox" id="delete-confirm-files">
+            同时删除磁盘上的模型文件
+        </label>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="UI.closeModal('modal-delete')">取消</button>
+            <button class="btn btn-danger" onclick="App.doDelete()">删除</button>
+        </div>
+    </div>
+
+    <div class="modal" id="modal-upload">
+        <h3 class="modal-title">上传<span class="accent">模型</span></h3>
+        <div class="form-group">
+            <label class="form-label">目标模型名称</label>
+            <input type="text" class="form-input" id="upload-model-name" placeholder="分组/模型名">
+            <div class="form-hint">必须使用 分组/模型名 格式，目录不存在时将自动创建</div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">文件</label>
+            <div class="upload-drop-zone" id="upload-drop-zone">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                <p id="upload-file-label">点击或拖拽文件到此处</p>
+                <p style="font-size: 11px; margin-top: 4px;">支持 .zip, .moc, .json, .mtn, .png, .jpg</p>
+            </div>
+            <input type="file" id="upload-file-input" style="display:none" accept=".zip,.moc,.json,.mtn,.png,.jpg">
+        </div>
+        <div class="upload-progress" id="upload-progress">
+            <div class="upload-progress-bar">
+                <div class="upload-progress-fill" id="upload-progress-fill"></div>
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="UI.closeModal('modal-upload')">取消</button>
+            <button class="btn btn-glow" id="upload-submit-btn" onclick="App.doUpload()">上传</button>
+        </div>
+    </div>
+
+    <div class="modal modal-lg" id="modal-generate">
+        <h3 class="modal-title">调用<span class="accent">代码</span></h3>
+        <p class="modal-subtitle" id="generate-model-name"></p>
+        <div class="code-tabs" id="code-tabs">
+            <button class="code-tab active" data-tab="cubism2" onclick="App.switchCodeTab('cubism2')">Cubism 2</button>
+            <button class="code-tab" data-tab="cubism4" onclick="App.switchCodeTab('cubism4')">Cubism 4</button>
+        </div>
+        <div class="code-block">
+            <div class="code-header">
+                <span class="code-lang">HTML + JavaScript</span>
+                <button class="btn btn-sm btn-glow" onclick="App.copyCode()">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                    复制代码
+                </button>
+            </div>
+            <pre><code id="generate-code-content"></code></pre>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-outline" onclick="UI.closeModal('modal-generate')">关闭</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/pixi.js@7/dist/pixi.min.js"></script>
+    <script src="assets/js/api.js"></script>
+    <script src="assets/js/live2d.min.js"></script>
+    <script src="https://cubism.live2d.com/sdk-web/cubismcore/live2dcubismcore.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/pixi-live2d-display/dist/cubism4.min.js"></script>
+    <script src="assets/js/components.js"></script>
+    <script src="assets/js/live2d.js"></script>
+    <script src="assets/js/app.js"></script>
+</body>
+</html>

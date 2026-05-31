@@ -1,0 +1,13 @@
+node_modules/
+.trae/
+.git/
+.gitignore
+*.md
+.DS_Store
+Thumbs.db
+*.log
+npm-debug.log*
+docker-compose*.yml
+Dockerfile
+.dockerignore
+.github/
