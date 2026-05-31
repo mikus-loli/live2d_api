@@ -81,7 +81,7 @@ function extractTexturesFromConfig(config) {
 
 function getModelInfo(modelName) {
   var dir = path.join(MODEL_DIR, modelName);
-  var info = { textures_count: 0, has_moc: false, has_physics: false, has_pose: false, file_count: 0 };
+  var info = { textures_count: 0, has_moc: false, has_physics: false, has_pose: false, file_count: 0, is_cubism4: false };
   if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return info;
   var files = scanDir(dir);
   info.file_count = files.length;
@@ -89,6 +89,8 @@ function getModelInfo(modelName) {
     var ext = path.extname(f.name).toLowerCase();
     var base = path.basename(f.name);
     if (ext === '.moc' || ext === '.moc3') info.has_moc = true;
+    if (ext === '.moc3') info.is_cubism4 = true;
+    if (/\.model3\.json$/i.test(base)) info.is_cubism4 = true;
     if (/\.physics(3)?\.json$/i.test(base)) info.has_physics = true;
     if (base === 'pose.json') info.has_pose = true;
     if (/\.(png|jpg|avif)$/i.test(base)) info.textures_count++;
@@ -150,28 +152,6 @@ function extractMotionsFromConfig(config) {
     });
   }
   return motions;
-}
-
-function convertModel3ToLegacy(config, modelName) {
-  var json = {};
-  var ref = config.FileReferences;
-  if (ref) {
-    json.model = ref.Moc;
-    json.textures = ref.Textures || [];
-    json.physics = ref.Physics || null;
-    json.pose = ref.Pose || null;
-    json.display = ref.DisplayInfo || null;
-  }
-  if (config.Groups) {
-    json.motions = {};
-    config.Groups.forEach(function (g) {
-      json.motions[g.Name] = [];
-    });
-  }
-  if (config.HitAreas) {
-    json.hit_areas = config.HitAreas;
-  }
-  return json;
 }
 
 function loadUsers() {
@@ -767,6 +747,7 @@ function handleAPI(req, res, urlPath) {
             id: null, name: subName, group: group,
             textures_count: subInfo.textures_count, has_moc: subInfo.has_moc,
             has_physics: subInfo.has_physics, has_pose: subInfo.has_pose, file_count: subInfo.file_count,
+            is_cubism4: subInfo.is_cubism4,
           });
         }
         if (subModels.length === 0) return;
@@ -779,6 +760,7 @@ function handleAPI(req, res, urlPath) {
           id: String(idx), name: entry, group: entry.split('/')[0] || entry, message: message,
           is_multi: false, textures_count: info.textures_count, has_moc: info.has_moc,
           has_physics: info.has_physics, has_pose: info.has_pose, file_count: info.file_count,
+          is_cubism4: info.is_cubism4,
         });
       }
     });
@@ -970,111 +952,6 @@ function handleAPI(req, res, urlPath) {
   jsonRes(res, { success: false, data: null, message: 'Unknown endpoint' }, 404);
 }
 
-function handlePublicModels(req, res) {
-  var list = JSON.parse(fs.readFileSync(MODEL_LIST_FILE, 'utf-8'));
-  var models = list.models;
-  var messages = list.messages;
-  var result = [];
-  models.forEach(function (entry, idx) {
-    var message = messages[idx] || '';
-    if (Array.isArray(entry)) {
-      var group = entry[0];
-      var subModels = [];
-      for (var s = 1; s < entry.length; s++) {
-        var subName = entry[s];
-        var subDir = path.join(MODEL_DIR, subName);
-        if (!fs.existsSync(subDir)) return;
-        var subInfo = getModelInfo(subName);
-        subModels.push({ name: subName, has_moc: subInfo.has_moc });
-      }
-      if (subModels.length === 0) return;
-      result.push({ name: group, message: message, is_multi: true, sub_models: subModels, has_moc: true });
-    } else {
-      var modelDir = path.join(MODEL_DIR, entry);
-      if (!fs.existsSync(modelDir)) return;
-      var info = getModelInfo(entry);
-      result.push({ name: entry, message: message, is_multi: false, has_moc: info.has_moc });
-    }
-  });
-  jsonRes(res, { success: true, data: result });
-}
-
-function handleGetModel(req, res, params) {
-  var modelName = params.get('name');
-  var modelId = params.get('id');
-  var texturesId = params.get('textures_id');
-
-  if (modelId) {
-    var parts = modelId.split('-');
-    var id = parseInt(parts[0], 10);
-    var texId = parseInt(parts[1], 10) || 0;
-    var list = JSON.parse(fs.readFileSync(MODEL_LIST_FILE, 'utf-8'));
-    var entry = list.models[id - 1];
-    if (!entry) { res.writeHead(404); res.end(); return; }
-    modelName = Array.isArray(entry) ? entry[0] + '/' + entry[1] : entry;
-    if (!modelName) { res.writeHead(404); res.end(); return; }
-  }
-
-  if (!modelName) { res.writeHead(404); res.end(); return; }
-
-  var dir = path.join(MODEL_DIR, modelName);
-  if (!fs.existsSync(dir)) { res.writeHead(404); res.end(); return; }
-
-  var indexPath = path.join(dir, 'index.json');
-  var model3Name = findModel3Json(dir);
-  var model3Path = model3Name ? path.join(dir, model3Name) : null;
-  var configPath = fs.existsSync(indexPath) ? indexPath : model3Path;
-  var json;
-
-  if (configPath) {
-    json = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
-    if (configPath === model3Path) {
-      json = convertModel3ToLegacy(json, modelName);
-    }
-  } else {
-    json = { model: modelName + '.moc' };
-  }
-
-  var host = req.headers['host'] || 'localhost:8080';
-  var proto = req.headers['x-forwarded-proto'] || 'http';
-  var base = proto + '://' + host;
-
-  if (json.textures && Array.isArray(json.textures)) {
-    json.textures.forEach(function (t, i) {
-      json.textures[i] = base + '/model/' + modelName + '/' + t;
-    });
-  }
-  if (json.model) json.model = base + '/model/' + modelName + '/' + json.model;
-  if (json.pose) json.pose = base + '/model/' + modelName + '/' + json.pose;
-  if (json.physics) json.physics = base + '/model/' + modelName + '/' + json.physics;
-  if (json.motions) {
-    Object.keys(json.motions).forEach(function (group) {
-      json.motions[group].forEach(function (motion, idx) {
-        Object.keys(motion).forEach(function (key) {
-          if (key === 'file' || key === 'sound') {
-            json.motions[group][idx][key] = base + '/model/' + modelName + '/' + motion[key];
-          }
-        });
-      });
-    });
-  }
-  if (json.expressions) {
-    json.expressions.forEach(function (expr, idx) {
-      Object.keys(expr).forEach(function (key) {
-        if (key === 'file') {
-          json.expressions[idx][key] = base + '/model/' + modelName + '/' + expr[key];
-        }
-      });
-    });
-  }
-
-  res.writeHead(200, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Access-Control-Allow-Origin': '*',
-  });
-  res.end(JSON.stringify(json));
-}
-
 var server = http.createServer(function (req, res) {
   var rawPath = new URL(req.url, 'http://localhost').pathname;
   var urlPath;
@@ -1092,14 +969,6 @@ var server = http.createServer(function (req, res) {
 
   if (urlPath.startsWith('/admin/api/')) {
     return handleAPI(req, res, urlPath);
-  }
-
-  if (urlPath === '/get/' || urlPath === '/get') {
-    return handleGetModel(req, res, new URL(req.url, 'http://localhost').searchParams);
-  }
-
-  if (urlPath === '/api/models') {
-    return handlePublicModels(req, res);
   }
 
   if (urlPath === '/live2d.min.js') {
@@ -1150,19 +1019,6 @@ var server = http.createServer(function (req, res) {
         'Cache-Control': 'public, max-age=86400',
       });
       fs.createReadStream(pixiPath).pipe(res);
-      return;
-    }
-  }
-
-  if (urlPath === '/autoload.js') {
-    var alPath = path.join(BASE, 'admin', 'assets', 'js', 'autoload.js');
-    if (fs.existsSync(alPath)) {
-      res.writeHead(200, {
-        'Content-Type': 'application/javascript; charset=utf-8',
-        'Access-Control-Allow-Origin': '*',
-        'Cache-Control': 'public, max-age=3600',
-      });
-      fs.createReadStream(alPath).pipe(res);
       return;
     }
   }

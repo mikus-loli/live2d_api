@@ -7,6 +7,10 @@ var Live2DPreview = (function () {
   var pixiApp = null;
   var pixiModel = null;
 
+  function encodePath(name) {
+    return name.split('/').map(encodeURIComponent).join('/');
+  }
+
   function init() {
     canvas2 = document.getElementById('live2d-canvas');
   }
@@ -56,7 +60,7 @@ var Live2DPreview = (function () {
     if (canvas2) canvas2.style.display = 'none';
   }
 
-  function loadModel(modelName) {
+  function loadModel(modelName, isCubism4) {
     if (!canvas2) init();
     if (!canvas2) return;
 
@@ -69,18 +73,11 @@ var Live2DPreview = (function () {
     var modelInfo = document.getElementById('preview-model-name');
     if (modelInfo) modelInfo.textContent = modelName;
 
-    fetch('../get/?name=' + encodeURIComponent(modelName))
-      .then(function (r) { return r.json(); })
-      .then(function (config) {
-        if (config.model && config.model.indexOf('.moc3') !== -1) {
-          loadModel4(modelName);
-        } else {
-          loadModel2(modelName);
-        }
-      })
-      .catch(function () {
-        loadModel2(modelName);
-      });
+    if (isCubism4) {
+      loadModel4(modelName);
+    } else {
+      loadModel2(modelName);
+    }
   }
 
   function loadModel2(modelName) {
@@ -92,7 +89,7 @@ var Live2DPreview = (function () {
       showFallback('缺少 Live2D Cubism 2 库');
       return;
     }
-    var url = '../model/' + encodeURIComponent(modelName) + '/index.json';
+    var url = '../model/' + encodePath(modelName) + '/index.json';
     try {
       loadlive2d('live2d-canvas', url);
     } catch (e) {
@@ -131,7 +128,7 @@ var Live2DPreview = (function () {
       return;
     }
 
-    var modelUrl = '../model/' + encodeURIComponent(modelName) + '/' + encodeURIComponent(findModel4Config(modelName));
+    var modelUrl = '../model/' + encodePath(modelName) + '/' + encodeURIComponent(findModel4Config(modelName));
     showLoadingIndicator(true);
 
     PIXI.live2d.Live2DModel.from(modelUrl)
@@ -243,7 +240,7 @@ var Live2DPreview = (function () {
 
     if (typeof loadlive2d === 'function') {
       try {
-        loadlive2d('live2d-canvas', '../model/' + encodeURIComponent(modelName) + '/index.json');
+        loadlive2d('live2d-canvas', '../model/' + encodePath(modelName) + '/index.json');
       } catch (e) {
         UI.toast('Live2D 加载错误: ' + e.message, 'error');
         showFallback('Cubism 2 加载失败');
@@ -265,14 +262,14 @@ var Live2DPreview = (function () {
     }
 
     currentTextureId++;
-    var url = '../model/' + encodeURIComponent(currentModel) + '/index.json';
+    var url = '../model/' + encodePath(currentModel) + '/index.json';
 
     if (typeof loadlive2d === 'function') {
       try {
         loadlive2d('live2d-canvas', url);
       } catch (e) {
         currentTextureId = 0;
-        loadlive2d('live2d-canvas', '../model/' + encodeURIComponent(currentModel) + '/index.json');
+        loadlive2d('live2d-canvas', '../model/' + encodePath(currentModel) + '/index.json');
         UI.toast('已回到首个纹理', 'info');
       }
     } else {

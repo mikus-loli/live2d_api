@@ -5,10 +5,6 @@ var App = (function () {
   var searchQuery = '';
   var currentView = 'list';
   var currentDetailModel = null;
-  var generatedCode2 = '';
-  var generatedCode4 = '';
-  var generatedCodeAuto = '';
-  var activeCodeTab = 'autoload';
   var currentCodeModel = '';
 
   function init() {
@@ -19,6 +15,22 @@ var App = (function () {
     Live2DPreview.init();
     initTheme();
     initRealtime();
+    initGenModalObserver();
+  }
+
+  function initGenModalObserver() {
+    var modal = document.getElementById('modal-generate');
+    if (!modal) return;
+    var observer = new MutationObserver(function (mutations) {
+      for (var i = 0; i < mutations.length; i++) {
+        if (mutations[i].attributeName === 'class') {
+          if (!modal.classList.contains('active')) {
+            destroyGenPixi();
+          }
+        }
+      }
+    });
+    observer.observe(modal, { attributes: true });
   }
 
   function initTheme() {
@@ -214,16 +226,16 @@ var App = (function () {
     var byName = findModelByName(nameOrId);
     if (byName) {
       if (byName.is_multi && byName.sub_models && byName.sub_models.length > 0) {
-        Live2DPreview.loadModel(byName.sub_models[0].name);
+        Live2DPreview.loadModel(byName.sub_models[0].name, byName.sub_models[0].is_cubism4);
       } else {
-        Live2DPreview.loadModel(byName.name);
+        Live2DPreview.loadModel(byName.name, byName.is_cubism4);
       }
       return;
     }
 
     var modelId = parseInt(nameOrId);
     if (isNaN(modelId)) {
-      Live2DPreview.loadModel(nameOrId);
+      Live2DPreview.loadModel(nameOrId, false);
       return;
     }
 
@@ -235,9 +247,9 @@ var App = (function () {
       }
     }
     if (model && model.is_multi && model.sub_models && model.sub_models.length > 0) {
-      Live2DPreview.loadModel(model.sub_models[0].name);
+      Live2DPreview.loadModel(model.sub_models[0].name, model.sub_models[0].is_cubism4);
     } else if (model && !model.is_multi) {
-      Live2DPreview.loadModel(model.name);
+      Live2DPreview.loadModel(model.name, model.is_cubism4);
     } else {
       Live2DPreview.loadModelById(modelId + 1, 0);
     }
@@ -504,52 +516,232 @@ var App = (function () {
       });
   }
 
+  var genState = {
+    modelName: '',
+    modelLast: '',
+    apiBase: '',
+    isCubism4: false,
+    position: 'right',
+    offsetX: 0,
+    offsetY: 0,
+    width: 300,
+    height: 400,
+  };
+  var genPixiApp = null;
+  var genCubism2Loaded = false;
+
   function generateCode(modelName) {
     currentCodeModel = modelName;
     document.getElementById('generate-model-name').textContent = '模型: ' + modelName;
 
-    var apiBase = window.location.origin;
-    var modelLast = modelName.split('/').pop();
+    genState.modelName = modelName;
+    genState.modelLast = modelName.split('/').pop();
+    genState.apiBase = window.location.origin;
+    genState.position = 'right';
+    genState.offsetX = 0;
+    genState.offsetY = 0;
+    genState.width = 300;
+    genState.height = 400;
 
-    Live2DAdminAPI.request('GET', '../../get/?name=' + encodeURIComponent(modelName))
-      .then(function (res) {
-        var isCubism4 = res.model && res.model.indexOf('.moc3') !== -1;
-
-        generatedCode2 = getCodeTemplate2(modelName, apiBase);
-        generatedCode4 = getCodeTemplate4(modelName, modelLast, apiBase);
-        generatedCodeAuto = getCodeTemplateAuto(modelName, apiBase);
-
-        if (isCubism4) {
-          activeCodeTab = 'cubism4';
-        } else {
-          activeCodeTab = 'autoload';
+    genState.isCubism4 = false;
+    for (var i = 0; i < models.length; i++) {
+      var m = models[i];
+      if (m.name === modelName) {
+        if (m.is_cubism4) { genState.isCubism4 = true; break; }
+        if (m.is_multi && m.sub_models) {
+          for (var j = 0; j < m.sub_models.length; j++) {
+            if (m.sub_models[j].is_cubism4) { genState.isCubism4 = true; break; }
+          }
+          if (genState.isCubism4) break;
         }
+      }
+    }
 
-        switchCodeTab(activeCodeTab);
-        UI.openModal('modal-generate');
-      })
-      .catch(function () {
-        generatedCode2 = getCodeTemplate2(modelName, apiBase);
-        generatedCode4 = getCodeTemplate4(modelName, modelLast, apiBase);
-        generatedCodeAuto = getCodeTemplateAuto(modelName, apiBase);
-        activeCodeTab = 'autoload';
-        switchCodeTab(activeCodeTab);
-        UI.openModal('modal-generate');
-      });
+    var offsetXEl = document.getElementById('gen-offset-x');
+    var offsetYEl = document.getElementById('gen-offset-y');
+    var widthEl = document.getElementById('gen-width');
+    var heightEl = document.getElementById('gen-height');
+    if (offsetXEl) offsetXEl.value = 0;
+    if (offsetYEl) offsetYEl.value = 0;
+    if (widthEl) widthEl.value = 300;
+    if (heightEl) heightEl.value = 400;
+
+    var posBtns = document.querySelectorAll('.gen-btn[data-pos]');
+    for (var i = 0; i < posBtns.length; i++) {
+      posBtns[i].classList.toggle('active', posBtns[i].getAttribute('data-pos') === 'right');
+    }
+
+    showGeneratedCode();
   }
 
-  function switchCodeTab(tab) {
-    activeCodeTab = tab;
+  function showGeneratedCode() {
+    loadGenPreview();
+    updateGenCode();
+    UI.openModal('modal-generate');
+  }
+
+  function setGenPos(pos) {
+    genState.position = pos;
+    var posBtns = document.querySelectorAll('.gen-btn[data-pos]');
+    for (var i = 0; i < posBtns.length; i++) {
+      posBtns[i].classList.toggle('active', posBtns[i].getAttribute('data-pos') === pos);
+    }
+    updateMockModelPosition();
+    updateGenCode();
+  }
+
+  function updateGenCode() {
+    var offsetXEl = document.getElementById('gen-offset-x');
+    var offsetYEl = document.getElementById('gen-offset-y');
+    var widthEl = document.getElementById('gen-width');
+    var heightEl = document.getElementById('gen-height');
+    if (offsetXEl) genState.offsetX = parseInt(offsetXEl.value, 10) || 0;
+    if (offsetYEl) genState.offsetY = parseInt(offsetYEl.value, 10) || 0;
+    if (widthEl) genState.width = Math.max(100, parseInt(widthEl.value, 10) || 300);
+    if (heightEl) genState.height = Math.max(100, parseInt(heightEl.value, 10) || 400);
+
+    updateMockModelPosition();
+
     var content = document.getElementById('generate-code-content');
+    var langEl = document.getElementById('generate-code-lang');
     if (!content) return;
 
-    if (tab === 'cubism4') content.textContent = generatedCode4;
-    else if (tab === 'cubism2') content.textContent = generatedCode2;
-    else content.textContent = generatedCodeAuto;
+    if (genState.isCubism4) {
+      content.textContent = getCodeTemplate4(genState.modelName, genState.modelLast, genState.apiBase, genState);
+      if (langEl) langEl.textContent = 'Cubism 4 · HTML + JavaScript';
+    } else {
+      content.textContent = getCodeTemplate2(genState.modelName, genState.apiBase, genState);
+      if (langEl) langEl.textContent = 'Cubism 2 · HTML + JavaScript';
+    }
+  }
 
-    var tabBtns = document.querySelectorAll('.code-tab');
-    for (var i = 0; i < tabBtns.length; i++) {
-      tabBtns[i].classList.toggle('active', tabBtns[i].getAttribute('data-tab') === tab);
+  var MOCK_PAGE_W = 400;
+  var MOCK_PAGE_H = 250;
+  var MOCK_SCALE = MOCK_PAGE_W / 1920;
+
+  function loadGenPreview() {
+    releaseMainPreview();
+
+    var wrap = document.getElementById('gen-preview-wrap');
+    if (!wrap) return;
+    while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
+
+    var cw = Math.round(genState.width * MOCK_SCALE);
+    var ch = Math.round(genState.height * MOCK_SCALE);
+
+    var canvas = document.createElement('canvas');
+    canvas.id = 'gen-preview-canvas';
+    canvas.width = cw;
+    canvas.height = ch;
+    canvas.style.width = cw + 'px';
+    canvas.style.height = ch + 'px';
+    wrap.appendChild(canvas);
+
+    updateMockModelPosition();
+
+    if (genState.isCubism4) {
+      loadGenPreview4(canvas, cw, ch);
+    } else {
+      loadGenPreview2(canvas);
+    }
+  }
+
+  function updateMockModelPosition() {
+    var model = document.getElementById('gen-mock-model');
+    if (!model) return;
+
+    var cw = Math.round(genState.width * MOCK_SCALE);
+    var ch = Math.round(genState.height * MOCK_SCALE);
+    var ox = Math.round(genState.offsetX * MOCK_SCALE);
+    var oy = Math.round(genState.offsetY * MOCK_SCALE);
+
+    model.style.width = cw + 'px';
+    model.style.height = ch + 'px';
+
+    if (genState.position === 'left') {
+      model.style.left = ox + 'px';
+      model.style.right = 'auto';
+    } else {
+      model.style.right = ox + 'px';
+      model.style.left = 'auto';
+    }
+    model.style.bottom = oy + 'px';
+
+    var canvas = document.getElementById('gen-preview-canvas');
+    if (canvas) {
+      canvas.width = cw;
+      canvas.height = ch;
+      canvas.style.width = cw + 'px';
+      canvas.style.height = ch + 'px';
+    }
+  }
+
+  function releaseMainPreview() {
+    if (typeof Live2DPreview !== 'undefined' && Live2DPreview.closePanel) {
+      Live2DPreview.closePanel();
+    }
+    var mainWrap = document.getElementById('preview-canvas-wrap');
+    if (mainWrap) {
+      while (mainWrap.firstChild) mainWrap.removeChild(mainWrap.firstChild);
+    }
+    var freshCanvas = document.createElement('canvas');
+    freshCanvas.id = 'live2d-canvas';
+    freshCanvas.width = 320;
+    freshCanvas.height = 400;
+    if (mainWrap) mainWrap.appendChild(freshCanvas);
+    if (typeof Live2DPreview !== 'undefined' && Live2DPreview.init) {
+      Live2DPreview.init();
+    }
+  }
+
+  function loadGenPreview2(canvas) {
+    canvas.style.display = '';
+    if (typeof loadlive2d === 'function') {
+      loadlive2d('gen-preview-canvas', genState.apiBase + '/model/' + encodePath(genState.modelName) + '/index.json');
+    }
+  }
+
+  function loadGenPreview4(canvas, cw, ch) {
+    if (typeof PIXI === 'undefined' || !PIXI.live2d) return;
+
+    canvas.style.display = 'none';
+    var wrap = document.getElementById('gen-preview-wrap');
+    if (!wrap) return;
+
+    var cv = document.createElement('canvas');
+    cv.style.width = cw + 'px';
+    cv.style.height = ch + 'px';
+    wrap.appendChild(cv);
+
+    try {
+      genPixiApp = new PIXI.Application({
+        view: cv,
+        width: cw,
+        height: ch,
+        backgroundAlpha: 0,
+        autoDensity: true,
+        resolution: window.devicePixelRatio || 1,
+      });
+    } catch (e) { return; }
+
+    var modelUrl = genState.apiBase + '/model/' + encodePath(genState.modelName) + '/' + encodeURIComponent(genState.modelLast) + '.model3.json';
+    PIXI.live2d.Live2DModel.from(modelUrl).then(function (m) {
+      var sc = Math.min(cw / m.width * 0.85, ch / m.height * 0.85);
+      m.scale.set(sc);
+      m.x = cw / 2;
+      m.y = ch / 2;
+      genPixiApp.stage.addChild(m);
+    }).catch(function () {});
+  }
+
+  function destroyGenPixi() {
+    if (genPixiApp) {
+      genPixiApp.destroy(true);
+      genPixiApp = null;
+    }
+    var wrap = document.getElementById('gen-preview-wrap');
+    if (wrap) {
+      while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
     }
   }
 
@@ -580,27 +772,29 @@ var App = (function () {
     document.body.removeChild(ta);
   }
 
-  var LIVE2D_EMBED_PREFIX = '<style>#live2d{position:fixed;right:0;bottom:0;z-index:99999;pointer-events:none}</style>\n' +
-    '<canvas id="live2d" width="300" height="400"></canvas>\n';
-
   function encodePath(name) {
     return name.split('/').map(encodeURIComponent).join('/');
   }
 
-  function getCodeTemplateAuto(modelName, apiBase) {
-    return '<script src="' + apiBase + '/autoload.js"><\/script>\n' +
-      '<script>live2dWidget.init({apiBase:"' + apiBase + '"})<\/script>';
+  function buildEmbedCSS(s) {
+    var pos = s.position === 'left' ? 'left' : 'right';
+    var css = '#live2d{position:fixed;' + pos + ':' + s.offsetX + 'px;bottom:' + s.offsetY + 'px;z-index:99999;pointer-events:none}';
+    return '<style>' + css + '</style>\n';
   }
 
-  function getCodeTemplate2(modelName, apiBase) {
-    return LIVE2D_EMBED_PREFIX +
+  function getCodeTemplate2(modelName, apiBase, s) {
+    return buildEmbedCSS(s) +
+      '<canvas id="live2d" width="' + s.width + '" height="' + s.height + '"></canvas>\n' +
       '<script>\n' +
       '(function(){var s=document.createElement("script");s.src="' + apiBase + '/live2d.min.js";s.onload=function(){loadlive2d("live2d","' + apiBase + '/model/' + encodePath(modelName) + '/index.json")};document.head.appendChild(s)})();\n' +
       '<\/script>';
   }
 
-  function getCodeTemplate4(modelName, modelLast, apiBase) {
-    return LIVE2D_EMBED_PREFIX +
+  function getCodeTemplate4(modelName, modelLast, apiBase, s) {
+    var w = s.width;
+    var h = s.height;
+    return buildEmbedCSS(s) +
+      '<canvas id="live2d" width="' + w + '" height="' + h + '"></canvas>\n' +
       '<script>\n' +
       '(function(){\n' +
       'var b="' + apiBase + '";\n' +
@@ -609,9 +803,9 @@ var App = (function () {
       '  ls(b+"/pixi.min.js",function(){\n' +
       '    ls(b+"/cubism4.min.js",function(){\n' +
       '      var cv=document.getElementById("live2d");\n' +
-      '      var app=new PIXI.Application({view:cv,width:300,height:400,backgroundAlpha:0,autoDensity:true,resolution:window.devicePixelRatio||1});\n' +
+      '      var app=new PIXI.Application({view:cv,width:' + w + ',height:' + h + ',backgroundAlpha:0,autoDensity:true,resolution:window.devicePixelRatio||1});\n' +
       '      PIXI.live2d.Live2DModel.from(b+"/model/' + encodePath(modelName) + '/' + encodeURIComponent(modelLast) + '.model3.json").then(function(m){\n' +
-      '        var sc=Math.min(300/m.width*0.85,400/m.height*0.85);m.scale.set(sc);m.x=150;m.y=200;app.stage.addChild(m);\n' +
+      '        var sc=Math.min(' + w + '/m.width*0.85,' + h + '/m.height*0.85);m.scale.set(sc);m.x=' + Math.round(w / 2) + ';m.y=' + Math.round(h / 2) + ';app.stage.addChild(m);\n' +
       '        cv.addEventListener("pointermove",function(e){var r=cv.getBoundingClientRect();m.focus(e.clientX-r.left,e.clientY-r.top)});\n' +
       '        cv.addEventListener("pointerleave",function(){m.focus(0,0)});\n' +
       '      });\n' +
@@ -798,7 +992,12 @@ var App = (function () {
     scanUnregistered: scanUnregistered,
     selectScannedDir: selectScannedDir,
     generateCode: generateCode,
-    switchCodeTab: switchCodeTab,
+    setGenPos: setGenPos,
+    updateGenCode: updateGenCode,
+    closeGenModal: function () {
+      destroyGenPixi();
+      UI.closeModal('modal-generate');
+    },
     copyCode: copyCode,
     doLogout: doLogout,
     doRefresh: doRefresh,

@@ -190,26 +190,67 @@
         </div>
     </div>
 
-    <div class="modal modal-lg" id="modal-generate">
+    <div class="modal modal-xl" id="modal-generate">
         <h3 class="modal-title">调用<span class="accent">代码</span></h3>
         <p class="modal-subtitle" id="generate-model-name"></p>
-        <div class="code-tabs" id="code-tabs">
-            <button class="code-tab active" data-tab="autoload" onclick="App.switchCodeTab('autoload')">Autoload</button>
-            <button class="code-tab" data-tab="cubism2" onclick="App.switchCodeTab('cubism2')">Cubism 2</button>
-            <button class="code-tab" data-tab="cubism4" onclick="App.switchCodeTab('cubism4')">Cubism 4</button>
-        </div>
-        <div class="code-block">
-            <div class="code-header">
-                <span class="code-lang">HTML + JavaScript</span>
-                <button class="btn btn-sm btn-glow" onclick="App.copyCode()">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-                    复制代码
-                </button>
+        <div class="gen-layout">
+            <div class="gen-preview">
+                <div class="gen-mock-page" id="gen-mock-page">
+                    <div class="gen-mock-header"></div>
+                    <div class="gen-mock-body">
+                        <div class="gen-mock-line"></div>
+                        <div class="gen-mock-line short"></div>
+                        <div class="gen-mock-line"></div>
+                        <div class="gen-mock-line short"></div>
+                        <div class="gen-mock-line"></div>
+                    </div>
+                    <div class="gen-mock-model" id="gen-mock-model">
+                        <div class="gen-mock-model-wrap" id="gen-preview-wrap"></div>
+                    </div>
+                </div>
             </div>
-            <pre><code id="generate-code-content"></code></pre>
+            <div class="gen-config">
+                <div class="gen-config-group">
+                    <label class="gen-config-label">位置</label>
+                    <div class="gen-btn-group">
+                        <button class="gen-btn active" data-pos="right" onclick="App.setGenPos('right')">右下</button>
+                        <button class="gen-btn" data-pos="left" onclick="App.setGenPos('left')">左下</button>
+                    </div>
+                </div>
+                <div class="gen-config-row">
+                    <div class="gen-config-group">
+                        <label class="gen-config-label">水平偏移</label>
+                        <input type="number" class="gen-config-input" id="gen-offset-x" value="0" min="0" max="500" onchange="App.updateGenCode()">
+                    </div>
+                    <div class="gen-config-group">
+                        <label class="gen-config-label">垂直偏移</label>
+                        <input type="number" class="gen-config-input" id="gen-offset-y" value="0" min="0" max="500" onchange="App.updateGenCode()">
+                    </div>
+                </div>
+                <div class="gen-config-row">
+                    <div class="gen-config-group">
+                        <label class="gen-config-label">宽度</label>
+                        <input type="number" class="gen-config-input" id="gen-width" value="300" min="100" max="800" onchange="App.updateGenCode()">
+                    </div>
+                    <div class="gen-config-group">
+                        <label class="gen-config-label">高度</label>
+                        <input type="number" class="gen-config-input" id="gen-height" value="400" min="100" max="800" onchange="App.updateGenCode()">
+                    </div>
+                </div>
+                <div class="code-block">
+                    <div class="code-header">
+                        <span class="code-lang" id="generate-code-lang">HTML + JavaScript</span>
+                        <button class="btn btn-sm btn-glow" onclick="App.copyCode()">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                            复制代码
+                        </button>
+                    </div>
+                    <pre><code id="generate-code-content"></code></pre>
+                </div>
+            </div>
         </div>
         <div class="modal-actions">
-            <button class="btn btn-outline" onclick="UI.closeModal('modal-generate')">关闭</button>
+            <button class="btn btn-outline" onclick="App.closeGenModal()">关闭</button>
         </div>
     </div>
 
