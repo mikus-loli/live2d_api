@@ -106,14 +106,6 @@ var Live2DAdminAPI = (function () {
       return request('POST', 'change_password', { current_password: currentPassword, new_password: newPassword });
     },
 
-    forgotPassword: function (usernameOrEmail) {
-      return request('POST', 'forgot_password', { username_or_email: usernameOrEmail });
-    },
-
-    resetPassword: function (token, newPassword) {
-      return request('POST', 'reset_password', { token: token, new_password: newPassword });
-    },
-
     updateProfile: function (currentPassword, email) {
       return request('POST', 'update_profile', { current_password: currentPassword, email: email });
     },

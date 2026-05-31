@@ -23,101 +23,36 @@
         </div>
 
         <div class="login-card" id="login-card">
-            <div class="login-view" id="login-view">
-                <div class="login-error" id="login-error" style="display:none"></div>
-                <form class="login-form" id="login-form" autocomplete="off" novalidate>
-                    <div class="form-group">
-                        <label class="form-label" for="login-username">用户名 / 邮箱</label>
-                        <div class="input-wrap">
-                            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                            <input type="text" class="form-input" id="login-username" placeholder="请输入用户名或邮箱" autocomplete="username" required>
-                        </div>
+            <div class="login-error" id="login-error" style="display:none"></div>
+            <form class="login-form" id="login-form" autocomplete="off" novalidate>
+                <div class="form-group">
+                    <label class="form-label" for="login-username">用户名 / 邮箱</label>
+                    <div class="input-wrap">
+                        <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                        <input type="text" class="form-input" id="login-username" placeholder="请输入用户名或邮箱" autocomplete="username" required>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label" for="login-password">密码</label>
-                        <div class="input-wrap">
-                            <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                            <input type="password" class="form-input" id="login-password" placeholder="请输入密码" autocomplete="current-password" required>
-                            <button type="button" class="input-toggle-pw" id="toggle-password" title="显示密码">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="login-options">
-                        <label class="form-checkbox">
-                            <input type="checkbox" id="login-remember">
-                            记住我
-                        </label>
-                    </div>
-                    <button type="submit" class="btn btn-glow login-btn" id="login-submit-btn">
-                        <span id="login-btn-text">登 录</span>
-                        <span class="login-spinner" id="login-spinner" style="display:none"></span>
-                    </button>
-                </form>
-                <div class="login-footer">
-                    <button type="button" class="login-link" id="forgot-pw-link">忘记密码？</button>
                 </div>
-            </div>
-
-            <div class="login-view" id="forgot-view" style="display:none">
-                <h3 class="login-view-title">找回<span class="accent">密码</span></h3>
-                <div class="login-error" id="forgot-error" style="display:none"></div>
-                <div class="login-success" id="forgot-success" style="display:none"></div>
-
-                <div id="forgot-step-1">
-                    <form class="login-form" id="forgot-form" autocomplete="off" novalidate>
-                        <div class="form-group">
-                            <label class="form-label" for="forgot-username">用户名 / 邮箱</label>
-                            <div class="input-wrap">
-                                <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                                <input type="text" class="form-input" id="forgot-username" placeholder="请输入用户名或邮箱" required>
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-glow login-btn" id="forgot-submit-btn">
-                            <span id="forgot-btn-text">获取重置令牌</span>
-                            <span class="login-spinner" id="forgot-spinner" style="display:none"></span>
+                <div class="form-group">
+                    <label class="form-label" for="login-password">密码</label>
+                    <div class="input-wrap">
+                        <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                        <input type="password" class="form-input" id="login-password" placeholder="请输入密码" autocomplete="current-password" required>
+                        <button type="button" class="input-toggle-pw" id="toggle-password" title="显示密码">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                         </button>
-                    </form>
+                    </div>
                 </div>
-
-                <div id="forgot-step-2" style="display:none">
-                    <form class="login-form" id="reset-form" autocomplete="off" novalidate>
-                        <div class="form-group">
-                            <label class="form-label" for="reset-token">重置令牌</label>
-                            <div class="input-wrap">
-                                <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                                <input type="text" class="form-input" id="reset-token" placeholder="请输入重置令牌" readonly required>
-                            </div>
-                            <div class="form-hint">令牌已自动填入，请设置新密码</div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="reset-password">新密码</label>
-                            <div class="input-wrap">
-                                <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                                <input type="password" class="form-input" id="reset-password" placeholder="至少8位，包含字母和数字" required>
-                                <button type="button" class="input-toggle-pw" id="toggle-reset-pw" title="显示密码">
-                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                                </button>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label" for="reset-password-confirm">确认新密码</label>
-                            <div class="input-wrap">
-                                <svg class="input-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                                <input type="password" class="form-input" id="reset-password-confirm" placeholder="再次输入新密码" required>
-                            </div>
-                        </div>
-                        <button type="submit" class="btn btn-glow login-btn" id="reset-submit-btn">
-                            <span id="reset-btn-text">重置密码</span>
-                            <span class="login-spinner" id="reset-spinner" style="display:none"></span>
-                        </button>
-                    </form>
+                <div class="login-options">
+                    <label class="form-checkbox">
+                        <input type="checkbox" id="login-remember">
+                        记住我
+                    </label>
                 </div>
-
-                <div class="login-footer">
-                    <button type="button" class="login-link" id="back-to-login-link">返回登录</button>
-                </div>
-            </div>
+                <button type="submit" class="btn btn-glow login-btn" id="login-submit-btn">
+                    <span id="login-btn-text">登 录</span>
+                    <span class="login-spinner" id="login-spinner" style="display:none"></span>
+                </button>
+            </form>
         </div>
     </div>
 

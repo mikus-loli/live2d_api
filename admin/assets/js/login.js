@@ -1,7 +1,4 @@
 var Login = (function () {
-  var currentView = 'login';
-  var resetToken = '';
-
   function init() {
     initTheme();
     initRememberedUser();
@@ -52,93 +49,10 @@ var Login = (function () {
         togglePasswordVisibility('login-password', 'toggle-password');
       });
     }
-
-    var forgotLink = document.getElementById('forgot-pw-link');
-    if (forgotLink) {
-      forgotLink.addEventListener('click', function () {
-        switchView('forgot');
-      });
-    }
-
-    var backLink = document.getElementById('back-to-login-link');
-    if (backLink) {
-      backLink.addEventListener('click', function () {
-        switchView('login');
-      });
-    }
-
-    var forgotForm = document.getElementById('forgot-form');
-    if (forgotForm) {
-      forgotForm.addEventListener('submit', function (e) {
-        e.preventDefault();
-        doForgotPassword();
-      });
-    }
-
-    var resetForm = document.getElementById('reset-form');
-    if (resetForm) {
-      resetForm.addEventListener('submit', function (e) {
-        e.preventDefault();
-        doResetPassword();
-      });
-    }
-
-    var toggleResetPw = document.getElementById('toggle-reset-pw');
-    if (toggleResetPw) {
-      toggleResetPw.addEventListener('click', function () {
-        togglePasswordVisibility('reset-password', 'toggle-reset-pw');
-      });
-    }
-
-    window.addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') {
-        if (currentView === 'login') {
-          doLogin();
-        } else if (currentView === 'forgot') {
-          var step2 = document.getElementById('forgot-step-2');
-          if (step2 && step2.style.display !== 'none') {
-            doResetPassword();
-          } else {
-            doForgotPassword();
-          }
-        }
-      }
-    });
-  }
-
-  function switchView(view) {
-    currentView = view;
-    var loginView = document.getElementById('login-view');
-    var forgotView = document.getElementById('forgot-view');
-    var forgotError = document.getElementById('forgot-error');
-    var forgotSuccess = document.getElementById('forgot-success');
-    var forgotStep1 = document.getElementById('forgot-step-1');
-    var forgotStep2 = document.getElementById('forgot-step-2');
-
-    if (view === 'login') {
-      if (loginView) loginView.style.display = '';
-      if (forgotView) forgotView.style.display = 'none';
-      if (forgotError) forgotError.style.display = 'none';
-      if (forgotSuccess) forgotSuccess.style.display = 'none';
-      if (forgotStep1) forgotStep1.style.display = '';
-      if (forgotStep2) forgotStep2.style.display = 'none';
-      resetToken = '';
-      clearLoginForm();
-      clearLoginError();
-    } else {
-      if (loginView) loginView.style.display = 'none';
-      if (forgotView) forgotView.style.display = '';
-      clearLoginError();
-    }
   }
 
   function showError(msg) {
-    var el;
-    if (currentView === 'login') {
-      el = document.getElementById('login-error');
-    } else {
-      el = document.getElementById('forgot-error');
-    }
+    var el = document.getElementById('login-error');
     if (!el) return;
     el.textContent = msg;
     el.style.display = 'block';
@@ -146,27 +60,9 @@ var Login = (function () {
     setTimeout(function () { el.classList.remove('shake'); }, 500);
   }
 
-  function showSuccess(msg) {
-    var el = document.getElementById('forgot-success');
-    if (!el) return;
-    el.textContent = msg;
-    el.style.display = 'block';
-  }
-
   function clearLoginError() {
-    var loginErr = document.getElementById('login-error');
-    var forgotErr = document.getElementById('forgot-error');
-    var forgotOk = document.getElementById('forgot-success');
-    if (loginErr) loginErr.style.display = 'none';
-    if (forgotErr) forgotErr.style.display = 'none';
-    if (forgotOk) forgotOk.style.display = 'none';
-  }
-
-  function clearLoginForm() {
-    var username = document.getElementById('login-username');
-    var password = document.getElementById('login-password');
-    if (username) username.value = '';
-    if (password) password.value = '';
+    var el = document.getElementById('login-error');
+    if (el) el.style.display = 'none';
   }
 
   function setButtonLoading(btnId, textId, spinnerId, loading) {
@@ -221,90 +117,6 @@ var Login = (function () {
       .catch(function (err) {
         showError(err.message);
         setButtonLoading('login-submit-btn', 'login-btn-text', 'login-spinner', false);
-      });
-  }
-
-  function doForgotPassword() {
-    var username = document.getElementById('forgot-username').value.trim();
-
-    var forgotErr = document.getElementById('forgot-error');
-    var forgotOk = document.getElementById('forgot-success');
-    if (forgotErr) forgotErr.style.display = 'none';
-    if (forgotOk) forgotOk.style.display = 'none';
-
-    if (!username) {
-      showError('请输入用户名或邮箱');
-      return;
-    }
-
-    setButtonLoading('forgot-submit-btn', 'forgot-btn-text', 'forgot-spinner', true);
-
-    Live2DAdminAPI.forgotPassword(username)
-      .then(function (res) {
-        setButtonLoading('forgot-submit-btn', 'forgot-btn-text', 'forgot-spinner', false);
-        if (res.data && res.data.reset_token) {
-          resetToken = res.data.reset_token;
-          var tokenInput = document.getElementById('reset-token');
-          if (tokenInput) tokenInput.value = resetToken;
-
-          var step1 = document.getElementById('forgot-step-1');
-          var step2 = document.getElementById('forgot-step-2');
-          if (step1) step1.style.display = 'none';
-          if (step2) step2.style.display = '';
-        }
-        showSuccess(res.message || '如果账户存在，重置令牌已生成');
-      })
-      .catch(function (err) {
-        setButtonLoading('forgot-submit-btn', 'forgot-btn-text', 'forgot-spinner', false);
-        showError(err.message);
-      });
-  }
-
-  function doResetPassword() {
-    var token = document.getElementById('reset-token').value.trim();
-    var password = document.getElementById('reset-password').value;
-    var passwordConfirm = document.getElementById('reset-password-confirm').value;
-
-    var forgotErr = document.getElementById('forgot-error');
-    var forgotOk = document.getElementById('forgot-success');
-    if (forgotErr) forgotErr.style.display = 'none';
-    if (forgotOk) forgotOk.style.display = 'none';
-
-    if (!token) {
-      showError('缺少重置令牌');
-      return;
-    }
-    if (!password) {
-      showError('请输入新密码');
-      return;
-    }
-    if (password.length < 8) {
-      showError('密码长度至少为 8 个字符');
-      return;
-    }
-    if (!/[a-zA-Z]/.test(password) || !/\d/.test(password)) {
-      showError('密码必须包含字母和数字');
-      return;
-    }
-    if (password !== passwordConfirm) {
-      showError('两次输入的密码不一致');
-      return;
-    }
-
-    setButtonLoading('reset-submit-btn', 'reset-btn-text', 'reset-spinner', true);
-
-    Live2DAdminAPI.resetPassword(token, password)
-      .then(function (res) {
-        setButtonLoading('reset-submit-btn', 'reset-btn-text', 'reset-spinner', false);
-        showSuccess(res.message || '密码重置成功，请使用新密码登录');
-        resetToken = '';
-        setTimeout(function () {
-          switchView('login');
-        }, 2000);
-      })
-      .catch(function (err) {
-        setButtonLoading('reset-submit-btn', 'reset-btn-text', 'reset-spinner', false);
-        showError(err.message);
       });
   }
 

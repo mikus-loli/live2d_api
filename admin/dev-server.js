@@ -376,86 +376,6 @@ function handleChangePassword(req, res) {
   });
 }
 
-function handleForgotPassword(req, res) {
-  if (req.method !== 'POST') return jsonRes(res, { success: false, data: null, message: 'Method not allowed' }, 405);
-
-  readBody(req, function (body) {
-    var input;
-    try { input = JSON.parse(body); } catch (e) { return jsonRes(res, { success: false, data: null, message: 'Invalid JSON' }); }
-
-    var usernameOrEmail = (input.username_or_email || '').trim();
-    var ip = getClientIP(req);
-
-    if (!usernameOrEmail) return jsonRes(res, { success: false, data: null, message: '请输入用户名或邮箱' });
-    if (!checkRateLimit(ip, 'reset_request')) return jsonRes(res, { success: false, data: null, message: '请求过于频繁，请稍后再试' });
-
-    var data = loadUsers();
-    var foundU = null;
-
-    Object.keys(data.users).forEach(function (uname) {
-      var u = data.users[uname];
-      if (uname.toLowerCase() === usernameOrEmail.toLowerCase() ||
-          (u.email && u.email.toLowerCase() === usernameOrEmail.toLowerCase())) {
-        foundU = uname;
-      }
-    });
-
-    if (!foundU) {
-      var dummyToken = generateToken();
-      return jsonRes(res, { success: true, data: { reset_token: dummyToken, expires_in: 3600 }, message: '如果账户存在，重置令牌已生成' });
-    }
-
-    if (!data.reset_tokens) data.reset_tokens = {};
-    var token = generateToken();
-    data.reset_tokens[token] = { username: foundU, created_at: Date.now(), expires_at: Date.now() + 3600000 };
-    saveUsers(data);
-
-    jsonRes(res, { success: true, data: { reset_token: token, expires_in: 3600 }, message: '重置令牌已生成' });
-  });
-}
-
-function handleResetPassword(req, res) {
-  if (req.method !== 'POST') return jsonRes(res, { success: false, data: null, message: 'Method not allowed' }, 405);
-
-  readBody(req, function (body) {
-    var input;
-    try { input = JSON.parse(body); } catch (e) { return jsonRes(res, { success: false, data: null, message: 'Invalid JSON' }); }
-
-    var token = (input.token || '').trim();
-    var newPassword = input.new_password || '';
-    var ip = getClientIP(req);
-
-    if (!token || !newPassword) return jsonRes(res, { success: false, data: null, message: '缺少必要参数' });
-    if (newPassword.length < 8) return jsonRes(res, { success: false, data: null, message: '密码长度至少为 8 个字符' });
-    if (!checkRateLimit(ip, 'reset_confirm')) return jsonRes(res, { success: false, data: null, message: '请求过于频繁，请稍后再试' });
-
-    var data = loadUsers();
-    if (!data.reset_tokens || !data.reset_tokens[token]) {
-      return jsonRes(res, { success: false, data: null, message: '重置令牌无效' });
-    }
-
-    var tData = data.reset_tokens[token];
-    if (Date.now() > tData.expires_at) {
-      delete data.reset_tokens[token];
-      saveUsers(data);
-      return jsonRes(res, { success: false, data: null, message: '重置令牌已过期' });
-    }
-
-    var username = tData.username;
-    if (!data.users[username]) return jsonRes(res, { success: false, data: null, message: '用户不存在' });
-
-    var bcryptjs = require('bcryptjs');
-    data.users[username].password_hash = bcryptjs.hashSync(newPassword, 12);
-    data.users[username].failed_attempts = 0;
-    data.users[username].locked_until = null;
-    delete data.reset_tokens[token];
-    saveUsers(data);
-    clearRateLimit(ip, 'reset_confirm');
-
-    jsonRes(res, { success: true, data: null, message: '密码重置成功，请使用新密码登录' });
-  });
-}
-
 function handleUpdateProfile(req, res) {
   var user = requireAuth(req, res);
   if (!user) return;
@@ -531,9 +451,6 @@ function handleAPI(req, res, urlPath) {
   if (endpoint === 'logout') return handleLogout(req, res);
   if (endpoint === 'status') return handleStatus(req, res);
   if (endpoint === 'change_password') return handleChangePassword(req, res);
-  if (endpoint === 'forgot_password') return handleForgotPassword(req, res);
-  if (endpoint === 'reset_password') return handleResetPassword(req, res);
-
   if (!requireAuth(req, res)) return;
 
   if (endpoint === 'update_profile') return handleUpdateProfile(req, res);
@@ -551,6 +468,8 @@ function handleAPI(req, res, urlPath) {
         var subModels = [];
         for (var s = 1; s < entry.length; s++) {
           var subName = entry[s];
+          var subDir = path.join(MODEL_DIR, subName);
+          if (!fs.existsSync(subDir)) return;
           var subInfo = getModelInfo(subName);
           subModels.push({
             id: null, name: subName, group: group,
@@ -558,8 +477,11 @@ function handleAPI(req, res, urlPath) {
             has_physics: subInfo.has_physics, has_pose: subInfo.has_pose, file_count: subInfo.file_count,
           });
         }
+        if (subModels.length === 0) return;
         result.push({ id: String(idx), name: group, group: group, message: message, is_multi: true, sub_models: subModels, has_moc: true });
       } else {
+        var modelDir = path.join(MODEL_DIR, entry);
+        if (!fs.existsSync(modelDir)) return;
         var info = getModelInfo(entry);
         result.push({
           id: String(idx), name: entry, group: entry.split('/')[0] || entry, message: message,
