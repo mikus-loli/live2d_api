@@ -1006,20 +1006,24 @@ function handleGetModel(req, res, params) {
     json = { model: modelName + '.moc' };
   }
 
+  var host = req.headers['host'] || 'localhost:8080';
+  var proto = req.headers['x-forwarded-proto'] || 'http';
+  var base = proto + '://' + host;
+
   if (json.textures && Array.isArray(json.textures)) {
     json.textures.forEach(function (t, i) {
-      json.textures[i] = '../model/' + modelName + '/' + t;
+      json.textures[i] = base + '/model/' + modelName + '/' + t;
     });
   }
-  if (json.model) json.model = '../model/' + modelName + '/' + json.model;
-  if (json.pose) json.pose = '../model/' + modelName + '/' + json.pose;
-  if (json.physics) json.physics = '../model/' + modelName + '/' + json.physics;
+  if (json.model) json.model = base + '/model/' + modelName + '/' + json.model;
+  if (json.pose) json.pose = base + '/model/' + modelName + '/' + json.pose;
+  if (json.physics) json.physics = base + '/model/' + modelName + '/' + json.physics;
   if (json.motions) {
     Object.keys(json.motions).forEach(function (group) {
       json.motions[group].forEach(function (motion, idx) {
         Object.keys(motion).forEach(function (key) {
           if (key === 'file' || key === 'sound') {
-            json.motions[group][idx][key] = '../model/' + modelName + '/' + motion[key];
+            json.motions[group][idx][key] = base + '/model/' + modelName + '/' + motion[key];
           }
         });
       });
@@ -1029,7 +1033,7 @@ function handleGetModel(req, res, params) {
     json.expressions.forEach(function (expr, idx) {
       Object.keys(expr).forEach(function (key) {
         if (key === 'file') {
-          json.expressions[idx][key] = '../model/' + modelName + '/' + expr[key];
+          json.expressions[idx][key] = base + '/model/' + modelName + '/' + expr[key];
         }
       });
     });
@@ -1132,7 +1136,12 @@ var server = http.createServer(function (req, res) {
 
   var ext = path.extname(filePath).toLowerCase();
   var mime = MIME[ext] || 'application/octet-stream';
-  res.writeHead(200, { 'Content-Type': mime });
+  var headers = { 'Content-Type': mime };
+  if (urlPath.startsWith('/model/')) {
+    headers['Access-Control-Allow-Origin'] = '*';
+    headers['Cache-Control'] = 'public, max-age=86400';
+  }
+  res.writeHead(200, headers);
   fs.createReadStream(filePath).pipe(res);
 });
 
