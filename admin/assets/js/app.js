@@ -577,57 +577,31 @@ var App = (function () {
 
   function getCodeTemplate2(modelName, apiBase) {
     return '<!-- Live2D \u770b\u677f\u5a18 - ' + modelName + ' -->\n' +
-      '<!-- \u4f9d\u8d56\uff1alive2d.min.js (Cubism 2 Runtime) -->\n' +
-      '<!-- CDN: https://cdn.jsdelivr.net/gh/dylanNew/live2d/webgl/Live2D/lib/live2d.min.js -->\n' +
       '\n' +
       '<canvas id="live2d" width="300" height="400"></canvas>\n' +
       '\n' +
-      '<script src="' + apiBase + '/live2d.min.js"><\/script>\n' +
-      '<script>\n' +
-      'loadlive2d(\'live2d\', \'' + apiBase + '/get/?name=' + encodeURIComponent(modelName) + '\');\n' +
-      '<\/script>';
+      '<script src="' + apiBase + '/live2d.min.js" onload="loadlive2d(\'live2d\',\'' + apiBase + '/get/?name=' + encodeURIComponent(modelName) + '\')"><\/script>';
   }
 
   function getCodeTemplate4(modelName, modelLast, apiBase) {
     return '<!-- Live2D \u770b\u677f\u5a18 - ' + modelName + ' (Cubism 4) -->\n' +
-      '<!-- \u4f9d\u8d56\uff1aPixiJS v6 + Cubism 4 Runtime -->\n' +
       '\n' +
       '<canvas id="live2d" width="300" height="400"></canvas>\n' +
       '\n' +
-      '<script src="' + apiBase + '/live2dcubismcore.min.js"><\/script>\n' +
-      '<script src="' + apiBase + '/pixi.min.js"><\/script>\n' +
-      '<script src="' + apiBase + '/cubism4.min.js"><\/script>\n' +
       '<script>\n' +
-      '(function() {\n' +
-      '  var canvas = document.getElementById(\'live2d\');\n' +
-      '  var app = new PIXI.Application({\n' +
-      '    view: canvas,\n' +
-      '    width: 300,\n' +
-      '    height: 400,\n' +
-      '    backgroundAlpha: 0,\n' +
-      '    autoDensity: true,\n' +
-      '    resolution: window.devicePixelRatio || 1\n' +
+      'function initLive2D4(){\n' +
+      '  var canvas=document.getElementById("live2d");\n' +
+      '  var app=new PIXI.Application({view:canvas,width:300,height:400,backgroundAlpha:0,autoDensity:true,resolution:window.devicePixelRatio||1});\n' +
+      '  PIXI.live2d.Live2DModel.from("' + apiBase + '/model/' + encodeURIComponent(modelName) + '/' + encodeURIComponent(modelLast) + '.model3.json").then(function(model){\n' +
+      '    var scale=Math.min(300/model.width*0.85,400/model.height*0.85);model.scale.set(scale);model.x=150;model.y=200;app.stage.addChild(model);\n' +
+      '    canvas.addEventListener("pointermove",function(e){var r=canvas.getBoundingClientRect();model.focus(e.clientX-r.left,e.clientY-r.top)});\n' +
+      '    canvas.addEventListener("pointerleave",function(){model.focus(0,0)});\n' +
       '  });\n' +
-      '\n' +
-      '  var modelUrl = \'' + apiBase + '/model/' + encodeURIComponent(modelName) + '/' + encodeURIComponent(modelLast) + '.model3.json\';\n' +
-      '\n' +
-      '  PIXI.live2d.Live2DModel.from(modelUrl).then(function(model) {\n' +
-      '    var scale = Math.min(300 / model.width * 0.85, 400 / model.height * 0.85);\n' +
-      '    model.scale.set(scale);\n' +
-      '    model.x = 150;\n' +
-      '    model.y = 200;\n' +
-      '    app.stage.addChild(model);\n' +
-      '\n' +
-      '    canvas.addEventListener(\'pointermove\', function(e) {\n' +
-      '      var rect = canvas.getBoundingClientRect();\n' +
-      '      model.focus(e.clientX - rect.left, e.clientY - rect.top);\n' +
-      '    });\n' +
-      '    canvas.addEventListener(\'pointerleave\', function() {\n' +
-      '      model.focus(0, 0);\n' +
-      '    });\n' +
-      '  });\n' +
-      '})();\n' +
-      '<\/script>';
+      '}\n' +
+      '<\/script>\n' +
+      '<script src="' + apiBase + '/live2dcubismcore.min.js"><\/script>\n' +
+      '<script src="' + apiBase + '/pixi.min.js" onload="document.querySelector(\'script[src*=cubism4]\')&&void 0"><\/script>\n' +
+      '<script src="' + apiBase + '/cubism4.min.js" onload="initLive2D4()"><\/script>';
   }
 
   function loadUserInfo() {
