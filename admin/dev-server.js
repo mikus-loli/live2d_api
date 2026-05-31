@@ -851,6 +851,19 @@ var server = http.createServer(function (req, res) {
     return handleGetModel(req, res, new URL(req.url, 'http://localhost').searchParams);
   }
 
+  if (urlPath === '/live2d.min.js') {
+    var sdkPath = path.join(BASE, 'admin', 'assets', 'js', 'live2d.min.js');
+    if (fs.existsSync(sdkPath)) {
+      res.writeHead(200, {
+        'Content-Type': 'application/javascript; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=86400',
+      });
+      fs.createReadStream(sdkPath).pipe(res);
+      return;
+    }
+  }
+
   var filePath;
   if (urlPath === '/admin' || urlPath === '/admin/') {
     filePath = path.join(BASE, 'admin', 'index.html');
