@@ -1175,7 +1175,11 @@ var server = http.createServer(function (req, res) {
   }
 
   if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-    res.writeHead(404);
+    var headers = { 'Content-Type': 'text/plain; charset=utf-8' };
+    if (urlPath.startsWith('/model/')) {
+      headers['Access-Control-Allow-Origin'] = '*';
+    }
+    res.writeHead(404, headers);
     res.end('Not Found');
     return;
   }

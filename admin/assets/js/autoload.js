@@ -22,6 +22,10 @@
     }
   }
 
+  function encodePath(name) {
+    return name.split('/').map(encodeURIComponent).join('/');
+  }
+
   function loadScript(url, cb) {
     var s = document.createElement('script');
     s.src = url;
@@ -221,10 +225,10 @@
 
   function loadCubism2Model(modelName, canvas) {
     if (typeof loadlive2d === 'function') {
-      loadlive2d('live2d-widget', settings.apiBase + '/model/' + encodeURIComponent(modelName) + '/index.json');
+      loadlive2d('live2d-widget', settings.apiBase + '/model/' + encodePath(modelName) + '/index.json');
     } else {
       loadScript(settings.apiBase + '/live2d.min.js', function () {
-        loadlive2d('live2d-widget', settings.apiBase + '/model/' + encodeURIComponent(modelName) + '/index.json');
+        loadlive2d('live2d-widget', settings.apiBase + '/model/' + encodePath(modelName) + '/index.json');
       });
     }
   }
@@ -248,7 +252,7 @@
         autoDensity: true,
         resolution: window.devicePixelRatio || 1,
       });
-      var modelUrl = settings.apiBase + '/model/' + encodeURIComponent(modelName) + '/' + encodeURIComponent(modelLast) + '.model3.json';
+      var modelUrl = settings.apiBase + '/model/' + encodePath(modelName) + '/' + encodeURIComponent(modelLast) + '.model3.json';
       PIXI.live2d.Live2DModel.from(modelUrl).then(function (m) {
         var sc = Math.min(settings.width / m.width * 0.85, settings.height / m.height * 0.85);
         m.scale.set(sc);

@@ -583,6 +583,10 @@ var App = (function () {
   var LIVE2D_EMBED_PREFIX = '<style>#live2d{position:fixed;right:0;bottom:0;z-index:99999;pointer-events:none}</style>\n' +
     '<canvas id="live2d" width="300" height="400"></canvas>\n';
 
+  function encodePath(name) {
+    return name.split('/').map(encodeURIComponent).join('/');
+  }
+
   function getCodeTemplateAuto(modelName, apiBase) {
     return '<script src="' + apiBase + '/autoload.js"><\/script>\n' +
       '<script>live2dWidget.init({apiBase:"' + apiBase + '"})<\/script>';
@@ -591,7 +595,7 @@ var App = (function () {
   function getCodeTemplate2(modelName, apiBase) {
     return LIVE2D_EMBED_PREFIX +
       '<script>\n' +
-      '(function(){var s=document.createElement("script");s.src="' + apiBase + '/live2d.min.js";s.onload=function(){loadlive2d("live2d","' + apiBase + '/model/' + encodeURIComponent(modelName) + '/index.json")};document.head.appendChild(s)})();\n' +
+      '(function(){var s=document.createElement("script");s.src="' + apiBase + '/live2d.min.js";s.onload=function(){loadlive2d("live2d","' + apiBase + '/model/' + encodePath(modelName) + '/index.json")};document.head.appendChild(s)})();\n' +
       '<\/script>';
   }
 
@@ -606,7 +610,7 @@ var App = (function () {
       '    ls(b+"/cubism4.min.js",function(){\n' +
       '      var cv=document.getElementById("live2d");\n' +
       '      var app=new PIXI.Application({view:cv,width:300,height:400,backgroundAlpha:0,autoDensity:true,resolution:window.devicePixelRatio||1});\n' +
-      '      PIXI.live2d.Live2DModel.from(b+"/model/' + encodeURIComponent(modelName) + '/' + encodeURIComponent(modelLast) + '.model3.json").then(function(m){\n' +
+      '      PIXI.live2d.Live2DModel.from(b+"/model/' + encodePath(modelName) + '/' + encodeURIComponent(modelLast) + '.model3.json").then(function(m){\n' +
       '        var sc=Math.min(300/m.width*0.85,400/m.height*0.85);m.scale.set(sc);m.x=150;m.y=200;app.stage.addChild(m);\n' +
       '        cv.addEventListener("pointermove",function(e){var r=cv.getBoundingClientRect();m.focus(e.clientX-r.left,e.clientY-r.top)});\n' +
       '        cv.addEventListener("pointerleave",function(){m.focus(0,0)});\n' +
