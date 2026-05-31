@@ -65,6 +65,9 @@
                         <span class="sidebar-user-role" id="sidebar-user-role"></span>
                     </div>
                 </div>
+                <button class="sidebar-settings-btn" onclick="App.openSettings()" title="账号设置">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                </button>
                 <button class="sidebar-logout-btn" onclick="App.doLogout()" title="退出登录">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
                 </button>
@@ -75,6 +78,9 @@
             <div class="content-header">
                 <h2 class="content-title">模型列表</h2>
                 <div class="content-actions">
+                    <button class="btn btn-icon" onclick="App.doRefresh()" title="刷新列表">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+                    </button>
                     <div class="search-box">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
                         <input type="text" id="search-input" placeholder="搜索模型...">
@@ -203,6 +209,53 @@
         </div>
         <div class="modal-actions">
             <button class="btn btn-outline" onclick="UI.closeModal('modal-generate')">关闭</button>
+        </div>
+    </div>
+
+    <div class="modal" id="modal-settings">
+        <h3 class="modal-title">账号<span class="accent">设置</span></h3>
+        <div class="settings-tabs">
+            <button class="settings-tab active" data-tab="profile" onclick="document.getElementById('settings-tab-profile').style.display='';document.getElementById('settings-tab-password').style.display='none';this.classList.add('active');this.nextElementSibling.classList.remove('active')">修改邮箱</button>
+            <button class="settings-tab" data-tab="password" onclick="document.getElementById('settings-tab-password').style.display='';document.getElementById('settings-tab-profile').style.display='none';this.classList.add('active');this.previousElementSibling.classList.remove('active')">修改密码</button>
+        </div>
+
+        <div id="settings-tab-profile">
+            <div class="login-error" id="settings-error" style="display:none"></div>
+            <div class="login-success" id="settings-success" style="display:none"></div>
+            <form class="login-form" onsubmit="event.preventDefault();App.doUpdateProfile()" autocomplete="off" novalidate>
+                <div class="form-group">
+                    <label class="form-label">当前密码</label>
+                    <input type="password" class="form-input" id="settings-current-password" placeholder="输入当前密码验证身份" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">邮箱</label>
+                    <input type="email" class="form-input" id="settings-email" placeholder="新邮箱地址" required>
+                </div>
+                <button type="submit" class="btn btn-glow" style="width:100%">更新邮箱</button>
+            </form>
+        </div>
+
+        <div id="settings-tab-password" style="display:none">
+            <div class="login-error" id="settings-pw-error" style="display:none"></div>
+            <div class="login-success" id="settings-pw-success" style="display:none"></div>
+            <form class="login-form" onsubmit="event.preventDefault();App.doChangePassword()" autocomplete="off" novalidate>
+                <div class="form-group">
+                    <label class="form-label">当前密码</label>
+                    <input type="password" class="form-input" id="settings-pw-current" placeholder="输入当前密码" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">新密码</label>
+                    <input type="password" class="form-input" id="settings-new-password" placeholder="至少8位，包含字母和数字" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">确认新密码</label>
+                    <input type="password" class="form-input" id="settings-new-password-confirm" placeholder="再次输入新密码" required>
+                </div>
+                <button type="submit" class="btn btn-glow" style="width:100%">修改密码</button>
+            </form>
+        </div>
+        <div class="modal-actions" style="margin-top:16px">
+            <button class="btn btn-outline" onclick="UI.closeModal('modal-settings')">关闭</button>
         </div>
     </div>
 

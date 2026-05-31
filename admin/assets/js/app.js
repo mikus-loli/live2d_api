@@ -17,6 +17,7 @@ var App = (function () {
     bindEvents();
     Live2DPreview.init();
     initTheme();
+    initRealtime();
   }
 
   function initTheme() {
@@ -660,6 +661,125 @@ var App = (function () {
       });
   }
 
+  var sseRetryTimer = null;
+
+  function initRealtime() {
+    var es = new EventSource('api/events');
+    es.onmessage = function (e) {
+      try {
+        var data = JSON.parse(e.data);
+        if (data.type === 'models_updated') {
+          loadModels();
+          loadGroups();
+        }
+      } catch (err) {}
+    };
+    es.onerror = function () {
+      es.close();
+      if (!sseRetryTimer) {
+        sseRetryTimer = setInterval(function () {
+          loadModels();
+          loadGroups();
+        }, 30000);
+      }
+    };
+  }
+
+  function doRefresh() {
+    UI.toast('刷新中...', 'info');
+    loadModels();
+    loadGroups();
+  }
+
+  function openSettings() {
+    document.getElementById('settings-current-password').value = '';
+    document.getElementById('settings-new-password').value = '';
+    document.getElementById('settings-new-password-confirm').value = '';
+    document.getElementById('settings-email').value = '';
+    document.getElementById('settings-error').style.display = 'none';
+    document.getElementById('settings-success').style.display = 'none';
+    document.getElementById('settings-pw-error').style.display = 'none';
+    document.getElementById('settings-pw-success').style.display = 'none';
+
+    Live2DAdminAPI.getStatus()
+      .then(function (res) {
+        var emailEl = document.getElementById('settings-email');
+        if (emailEl && res.data && res.data.email) {
+          emailEl.value = res.data.email;
+        }
+      })
+      .catch(function () {});
+
+    UI.openModal('modal-settings');
+  }
+
+  function doUpdateProfile() {
+    var currentPassword = document.getElementById('settings-current-password').value;
+    var email = document.getElementById('settings-email').value.trim();
+    var errEl = document.getElementById('settings-error');
+    var okEl = document.getElementById('settings-success');
+
+    if (errEl) errEl.style.display = 'none';
+    if (okEl) okEl.style.display = 'none';
+
+    if (!currentPassword) {
+      if (errEl) { errEl.textContent = '请输入当前密码'; errEl.style.display = 'block'; }
+      return;
+    }
+    if (!email) {
+      if (errEl) { errEl.textContent = '请输入邮箱'; errEl.style.display = 'block'; }
+      return;
+    }
+
+    Live2DAdminAPI.updateProfile(currentPassword, email)
+      .then(function () {
+        if (okEl) { okEl.textContent = '邮箱已更新'; okEl.style.display = 'block'; }
+        loadUserInfo();
+      })
+      .catch(function (err) {
+        if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+      });
+  }
+
+  function doChangePassword() {
+    var currentPassword = document.getElementById('settings-pw-current').value;
+    var newPassword = document.getElementById('settings-new-password').value;
+    var confirmPassword = document.getElementById('settings-new-password-confirm').value;
+    var errEl = document.getElementById('settings-pw-error');
+    var okEl = document.getElementById('settings-pw-success');
+
+    if (errEl) errEl.style.display = 'none';
+    if (okEl) okEl.style.display = 'none';
+
+    if (!currentPassword) {
+      if (errEl) { errEl.textContent = '请输入当前密码'; errEl.style.display = 'block'; }
+      return;
+    }
+    if (!newPassword || newPassword.length < 8) {
+      if (errEl) { errEl.textContent = '新密码长度至少为 8 个字符'; errEl.style.display = 'block'; }
+      return;
+    }
+    if (!/[a-zA-Z]/.test(newPassword) || !/\d/.test(newPassword)) {
+      if (errEl) { errEl.textContent = '密码必须包含字母和数字'; errEl.style.display = 'block'; }
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      if (errEl) { errEl.textContent = '两次输入的密码不一致'; errEl.style.display = 'block'; }
+      return;
+    }
+
+    Live2DAdminAPI.changePassword(currentPassword, newPassword)
+      .then(function () {
+        if (okEl) { okEl.textContent = '密码修改成功，请重新登录'; okEl.style.display = 'block'; }
+        setTimeout(function () {
+          window.location.href = 'login.html';
+        }, 1500);
+      })
+      .catch(function (err) {
+        if (errEl) { errEl.textContent = err.message; errEl.style.display = 'block'; }
+      });
+  }
+
   return {
     init: init,
     toggleTheme: toggleTheme,
@@ -681,6 +801,10 @@ var App = (function () {
     switchCodeTab: switchCodeTab,
     copyCode: copyCode,
     doLogout: doLogout,
+    doRefresh: doRefresh,
+    openSettings: openSettings,
+    doUpdateProfile: doUpdateProfile,
+    doChangePassword: doChangePassword,
   };
 })();
 

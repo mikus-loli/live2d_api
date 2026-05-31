@@ -17,6 +17,7 @@ var sessions = {};
 var rateLimitStore = {};
 var usersCache = null;
 var usersCacheTime = 0;
+var sseClients = [];
 
 var MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -455,6 +456,74 @@ function handleResetPassword(req, res) {
   });
 }
 
+function handleUpdateProfile(req, res) {
+  var user = requireAuth(req, res);
+  if (!user) return;
+
+  readBody(req, function (body) {
+    var input;
+    try { input = JSON.parse(body); } catch (e) { return jsonRes(res, { success: false, data: null, message: 'Invalid JSON' }); }
+
+    var email = (input.email || '').trim();
+    var currentPassword = input.current_password || '';
+
+    if (!currentPassword) return jsonRes(res, { success: false, data: null, message: '请输入当前密码' });
+    if (!email) return jsonRes(res, { success: false, data: null, message: '请输入邮箱' });
+
+    var data = loadUsers();
+    var userData = data.users[user.username];
+    if (!userData) return jsonRes(res, { success: false, data: null, message: '用户不存在' });
+
+    var bcryptjs = require('bcryptjs');
+    if (!bcryptjs.compareSync(currentPassword, userData.password_hash)) {
+      return jsonRes(res, { success: false, data: null, message: '当前密码错误' });
+    }
+
+    userData.email = email;
+    saveUsers(data);
+
+    var sessionUser = getSession(req);
+    if (sessionUser) sessionUser.email = email;
+
+    jsonRes(res, { success: true, data: { email: email }, message: '设置已更新' });
+  });
+}
+
+function handleEvents(req, res) {
+  var user = requireAuth(req, res);
+  if (!user) return;
+
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+  });
+  res.write('data: {"type":"connected"}\n\n');
+
+  sseClients.push(res);
+
+  req.on('close', function () {
+    var idx = sseClients.indexOf(res);
+    if (idx >= 0) sseClients.splice(idx, 1);
+  });
+}
+
+function broadcastSSE(data) {
+  var json = JSON.stringify(data);
+  for (var i = sseClients.length - 1; i >= 0; i--) {
+    try { sseClients[i].write('data: ' + json + '\n\n'); } catch (e) { sseClients.splice(i, 1); }
+  }
+}
+
+var modelListWatcher;
+var watchTarget = MODEL_LIST_FILE;
+try { watchTarget = fs.realpathSync(MODEL_LIST_FILE); } catch (e) {}
+try {
+  modelListWatcher = fs.watch(watchTarget, function () {
+    broadcastSSE({ type: 'models_updated' });
+  });
+} catch (e) {}
+
 function handleAPI(req, res, urlPath) {
   var endpoint = urlPath.replace('/admin/api/', '').replace('.php', '');
 
@@ -466,6 +535,9 @@ function handleAPI(req, res, urlPath) {
   if (endpoint === 'reset_password') return handleResetPassword(req, res);
 
   if (!requireAuth(req, res)) return;
+
+  if (endpoint === 'update_profile') return handleUpdateProfile(req, res);
+  if (endpoint === 'events') return handleEvents(req, res);
 
   if (endpoint === 'list') {
     var list = JSON.parse(fs.readFileSync(MODEL_LIST_FILE, 'utf-8'));
