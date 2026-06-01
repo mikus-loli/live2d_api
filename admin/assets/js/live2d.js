@@ -33,12 +33,29 @@ var Live2DPreview = (function () {
       panelOpen = false;
     }
     destroyPixi();
-    showCanvas2();
+    destroyCanvas2();
     removeFallback();
     hideLoading();
     clearSkinsData();
     currentModel = null;
     currentSkinId = 0;
+  }
+
+  function destroyCanvas2() {
+    if (canvas2) {
+      var parent = canvas2.parentNode;
+      if (parent) parent.removeChild(canvas2);
+      canvas2 = null;
+    }
+    var wrap = document.getElementById('preview-canvas-wrap');
+    if (wrap) {
+      var newCanvas = document.createElement('canvas');
+      newCanvas.id = 'live2d-canvas';
+      newCanvas.width = 480;
+      newCanvas.height = 600;
+      wrap.insertBefore(newCanvas, wrap.firstChild);
+      canvas2 = newCanvas;
+    }
   }
 
   function clearSkinsData() {

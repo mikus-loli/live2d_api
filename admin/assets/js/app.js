@@ -635,6 +635,7 @@ var App = (function () {
   var MOCK_PAGE_W = 400;
   var MOCK_PAGE_H = 250;
   var MOCK_SCALE = MOCK_PAGE_W / 1920;
+  var GEN_PREVIEW_SCALE = 1.5;
 
   function loadGenPreview() {
     releaseMainPreview();
@@ -644,13 +645,15 @@ var App = (function () {
     while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
 
     var scale = genState.scale || 1;
-    var cw = Math.round(genState.width * MOCK_SCALE * scale);
-    var ch = Math.round(genState.height * MOCK_SCALE * scale);
+    var cw = Math.round(genState.width * MOCK_SCALE * scale * GEN_PREVIEW_SCALE);
+    var ch = Math.round(genState.height * MOCK_SCALE * scale * GEN_PREVIEW_SCALE);
+    var renderW = Math.round(genState.width * scale * GEN_PREVIEW_SCALE);
+    var renderH = Math.round(genState.height * scale * GEN_PREVIEW_SCALE);
 
     var canvas = document.createElement('canvas');
     canvas.id = 'gen-preview-canvas';
-    canvas.width = cw;
-    canvas.height = ch;
+    canvas.width = renderW;
+    canvas.height = renderH;
     canvas.style.width = cw + 'px';
     canvas.style.height = ch + 'px';
     canvas.style.cursor = 'grab';
@@ -725,10 +728,12 @@ var App = (function () {
     if (!model) return;
 
     var scale = genState.scale || 1;
-    var cw = Math.round(genState.width * MOCK_SCALE * scale);
-    var ch = Math.round(genState.height * MOCK_SCALE * scale);
+    var cw = Math.round(genState.width * MOCK_SCALE * scale * GEN_PREVIEW_SCALE);
+    var ch = Math.round(genState.height * MOCK_SCALE * scale * GEN_PREVIEW_SCALE);
     var ox = Math.round(genState.offsetX * MOCK_SCALE);
     var oy = Math.round(genState.offsetY * MOCK_SCALE);
+    var renderW = Math.round(genState.width * scale * GEN_PREVIEW_SCALE);
+    var renderH = Math.round(genState.height * scale * GEN_PREVIEW_SCALE);
 
     model.style.width = cw + 'px';
     model.style.height = ch + 'px';
@@ -745,8 +750,8 @@ var App = (function () {
 
     var canvas = document.getElementById('gen-preview-canvas');
     if (canvas) {
-      canvas.width = cw;
-      canvas.height = ch;
+      canvas.width = renderW;
+      canvas.height = renderH;
       canvas.style.width = cw + 'px';
       canvas.style.height = ch + 'px';
     }
@@ -879,7 +884,7 @@ var App = (function () {
       '<script>\n' +
       '(function(){\n' +
       'var b="' + apiBase + '";\n' +
-      'function ls(u,c){var s=document.createElement("script");s.src=u;s.onload=c;document.head.appendChild(s)}\n' +
+      'function ls(u,c){var d=document.querySelector(\'script[src="\'+u+\'"]\');if(d){if(c)c();return}var s=document.createElement("script");s.src=u;s.onload=c;document.head.appendChild(s)}\n' +
       'ls(b+"/live2dcubismcore.min.js",function(){\n' +
       '  ls(b+"/pixi.min.js",function(){\n' +
       '    ls(b+"/cubism4.min.js",function(){\n' +
