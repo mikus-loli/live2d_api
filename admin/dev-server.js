@@ -81,7 +81,7 @@ function extractTexturesFromConfig(config) {
 
 function getModelInfo(modelName) {
   var dir = path.join(MODEL_DIR, modelName);
-  var info = { textures_count: 0, has_moc: false, has_physics: false, has_pose: false, file_count: 0, is_cubism4: false };
+  var info = { textures_count: 0, skins_count: 0, has_moc: false, has_physics: false, has_pose: false, file_count: 0, is_cubism4: false };
   if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) return info;
   var files = scanDir(dir);
   info.file_count = files.length;
@@ -107,12 +107,20 @@ function getModelInfo(modelName) {
     } catch (e) {}
   }
   var cachePath = path.join(dir, 'textures.cache');
+  var orderPath = path.join(dir, 'textures_order.json');
   if (fs.existsSync(cachePath)) {
     try {
       var cache = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
       if (Array.isArray(cache) && cache.length > 0) {
-        if (typeof cache[0] === 'string') info.textures_count = cache.length;
-        else if (Array.isArray(cache[0])) info.textures_count = cache[0].length;
+        info.skins_count = cache.length;
+      }
+    } catch (e) {}
+  } else if (fs.existsSync(orderPath)) {
+    try {
+      var order = JSON.parse(fs.readFileSync(orderPath, 'utf-8'));
+      if (Array.isArray(order) && order.length > 0) {
+        var combos = generateTextureCombinations(dir, order);
+        info.skins_count = combos.length;
       }
     } catch (e) {}
   }
@@ -398,6 +406,143 @@ function handleUpdateProfile(req, res) {
 
     jsonRes(res, { success: true, data: { username: newUsername }, message: '用户名已更新' });
   });
+}
+
+function handleTextureConfig(req, res, modelName, textureId) {
+  var dir = path.join(MODEL_DIR, modelName);
+  if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+    res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ error: 'Model not found' }));
+    return;
+  }
+
+  var indexPath = path.join(dir, 'index.json');
+  var model3Name = findModel3Json(dir);
+  var configPath = fs.existsSync(indexPath) ? indexPath : (model3Name ? path.join(dir, model3Name) : null);
+
+  if (!configPath) {
+    res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ error: 'Config not found' }));
+    return;
+  }
+
+  try {
+    var config = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+
+    var cachePath = path.join(dir, 'textures.cache');
+    var orderPath = path.join(dir, 'textures_order.json');
+    var textures = [];
+    var isMultiTexture = false;
+
+    if (fs.existsSync(cachePath)) {
+      var cache = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+      if (Array.isArray(cache) && cache.length > 0) {
+        if (Array.isArray(cache[0])) {
+          textures = cache;
+          isMultiTexture = true;
+        } else if (typeof cache[0] === 'string') {
+          textures = cache;
+        }
+      }
+    } else if (fs.existsSync(orderPath)) {
+      var order = JSON.parse(fs.readFileSync(orderPath, 'utf-8'));
+      if (Array.isArray(order) && order.length > 0) {
+        var combos = generateTextureCombinations(dir, order);
+        if (combos.length > 0) {
+          textures = combos;
+          isMultiTexture = true;
+        }
+      }
+    }
+
+    if (textures.length === 0) {
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Access-Control-Allow-Origin': '*',
+        'Cache-Control': 'public, max-age=60',
+      });
+      res.end(JSON.stringify(config));
+      return;
+    }
+
+    if (textureId < 1) textureId = 1;
+    if (textureId > textures.length) textureId = 1;
+
+    var selectedTextures = textures[textureId - 1];
+    if (isMultiTexture) {
+      if (config.FileReferences && config.FileReferences.Textures) {
+        config.FileReferences.Textures = selectedTextures;
+      } else if (config.textures) {
+        config.textures = selectedTextures;
+      }
+    } else {
+      if (config.FileReferences && config.FileReferences.Textures) {
+        config.FileReferences.Textures = [selectedTextures];
+      } else if (config.textures) {
+        config.textures = [selectedTextures];
+      }
+    }
+
+    res.writeHead(200, {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Access-Control-Allow-Origin': '*',
+      'Cache-Control': 'public, max-age=60',
+    });
+    res.end(JSON.stringify(config));
+  } catch (e) {
+    res.writeHead(500, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ error: 'Failed to read config' }));
+  }
+}
+
+function generateTextureCombinations(dir, order) {
+  var result = [];
+  var textureDirs = [];
+
+  for (var i = 0; i < order.length; i++) {
+    var group = order[i];
+    var groupFiles = [];
+    for (var j = 0; j < group.length; j++) {
+      var texDir = path.join(dir, group[j]);
+      if (fs.existsSync(texDir) && fs.statSync(texDir).isDirectory()) {
+        var files = fs.readdirSync(texDir).filter(function(f) {
+          return /\.(png|jpg|avif)$/i.test(f);
+        });
+        files.sort();
+        var paths = files.map(function(f) { return group[j] + '/' + f; });
+        groupFiles.push(paths);
+      }
+    }
+    if (groupFiles.length > 0) {
+      textureDirs.push(groupFiles);
+    }
+  }
+
+  if (textureDirs.length === 0) return result;
+
+  function combine(groups, prefix) {
+    if (groups.length === 0) {
+      result.push(prefix);
+      return;
+    }
+    var current = groups[0];
+    for (var i = 0; i < current.length; i++) {
+      combine(groups.slice(1), prefix.concat(current[i]));
+    }
+  }
+
+  var allGroups = [];
+  for (var i = 0; i < textureDirs.length; i++) {
+    var g = textureDirs[i];
+    var combined = [];
+    for (var j = 0; j < g.length; j++) {
+      combined = combined.concat(g[j]);
+    }
+    allGroups.push(combined);
+  }
+
+  combine(allGroups, []);
+  return result;
 }
 
 function handleEvents(req, res) {
@@ -745,9 +890,9 @@ function handleAPI(req, res, urlPath) {
           var subInfo = getModelInfo(subName);
           subModels.push({
             id: null, name: subName, group: group,
-            textures_count: subInfo.textures_count, has_moc: subInfo.has_moc,
-            has_physics: subInfo.has_physics, has_pose: subInfo.has_pose, file_count: subInfo.file_count,
-            is_cubism4: subInfo.is_cubism4,
+            textures_count: subInfo.textures_count, skins_count: subInfo.skins_count,
+            has_moc: subInfo.has_moc, has_physics: subInfo.has_physics, has_pose: subInfo.has_pose,
+            file_count: subInfo.file_count, is_cubism4: subInfo.is_cubism4,
           });
         }
         if (subModels.length === 0) return;
@@ -758,9 +903,9 @@ function handleAPI(req, res, urlPath) {
         var info = getModelInfo(entry);
         result.push({
           id: String(idx), name: entry, group: entry.split('/')[0] || entry, message: message,
-          is_multi: false, textures_count: info.textures_count, has_moc: info.has_moc,
-          has_physics: info.has_physics, has_pose: info.has_pose, file_count: info.file_count,
-          is_cubism4: info.is_cubism4,
+          is_multi: false, textures_count: info.textures_count, skins_count: info.skins_count,
+          has_moc: info.has_moc, has_physics: info.has_physics, has_pose: info.has_pose,
+          file_count: info.file_count, is_cubism4: info.is_cubism4,
         });
       }
     });
@@ -812,6 +957,49 @@ function handleAPI(req, res, urlPath) {
       }
     }
     return jsonRes(res, { success: true, data: { name: modelName, config: config, files: files, textures: textures, motions: motions } });
+  }
+
+  if (endpoint === 'skins') {
+    var params = new URL(req.url, 'http://localhost').searchParams;
+    var modelName = params.get('model_name');
+    if (!modelName) return jsonRes(res, { success: false, data: null, message: 'Missing model_name' });
+    var dir = path.join(MODEL_DIR, modelName);
+    if (!fs.existsSync(dir)) return jsonRes(res, { success: false, data: null, message: 'Model not found' });
+
+    var skins = [];
+    var cachePath = path.join(dir, 'textures.cache');
+    var orderPath = path.join(dir, 'textures_order.json');
+
+    if (fs.existsSync(cachePath)) {
+      try {
+        var cache = JSON.parse(fs.readFileSync(cachePath, 'utf-8'));
+        if (Array.isArray(cache) && cache.length > 0) {
+          if (Array.isArray(cache[0])) {
+            for (var i = 0; i < cache.length; i++) {
+              skins.push({ id: i + 1, textures: cache[i], name: 'Skin ' + (i + 1) });
+            }
+          } else if (typeof cache[0] === 'string') {
+            for (var i = 0; i < cache.length; i++) {
+              var tex = cache[i];
+              var name = path.basename(tex, path.extname(tex));
+              skins.push({ id: i + 1, textures: [tex], name: name });
+            }
+          }
+        }
+      } catch (e) {}
+    } else if (fs.existsSync(orderPath)) {
+      try {
+        var order = JSON.parse(fs.readFileSync(orderPath, 'utf-8'));
+        if (Array.isArray(order) && order.length > 0) {
+          var combos = generateTextureCombinations(dir, order);
+          for (var i = 0; i < combos.length; i++) {
+            skins.push({ id: i + 1, textures: combos[i], name: 'Skin ' + (i + 1) });
+          }
+        }
+      } catch (e) {}
+    }
+
+    return jsonRes(res, { success: true, data: { model_name: modelName, skins_count: skins.length, skins: skins } });
   }
 
   if (endpoint === 'create') {
@@ -1021,6 +1209,11 @@ var server = http.createServer(function (req, res) {
       fs.createReadStream(pixiPath).pipe(res);
       return;
     }
+  }
+
+  var textureMatch = urlPath.match(/^\/model\/(.+)\/config-(\d+)\.json$/);
+  if (textureMatch) {
+    return handleTextureConfig(req, res, textureMatch[1], parseInt(textureMatch[2], 10));
   }
 
   var filePath;

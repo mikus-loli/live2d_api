@@ -106,7 +106,7 @@
             <canvas id="live2d-canvas" width="320" height="400"></canvas>
         </div>
         <div class="preview-controls">
-            <button class="btn btn-sm btn-outline" onclick="Live2DPreview.switchTexture()">切换纹理</button>
+            <div id="skin-selector" class="skin-selector"></div>
         </div>
     </div>
 
@@ -235,6 +235,15 @@
                     <div class="gen-config-group">
                         <label class="gen-config-label">高度</label>
                         <input type="number" class="gen-config-input" id="gen-height" value="400" min="100" max="800" onchange="App.updateGenCode()">
+                    </div>
+                </div>
+                <div class="gen-config-group">
+                    <label class="gen-config-label">缩放比例</label>
+                    <div class="gen-btn-group">
+                        <button class="gen-btn" data-scale="0.5" onclick="App.setGenScale(0.5)">0.5x</button>
+                        <button class="gen-btn active" data-scale="1" onclick="App.setGenScale(1)">1x</button>
+                        <button class="gen-btn" data-scale="1.5" onclick="App.setGenScale(1.5)">1.5x</button>
+                        <button class="gen-btn" data-scale="2" onclick="App.setGenScale(2)">2x</button>
                     </div>
                 </div>
                 <div class="code-block">

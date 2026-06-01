@@ -2,10 +2,13 @@ var Live2DPreview = (function () {
   var canvas2 = null;
   var canvas4 = null;
   var currentModel = null;
-  var currentTextureId = 0;
+  var currentSkinId = 0;
   var panelOpen = false;
   var pixiApp = null;
   var pixiModel = null;
+  var skinsData = { count: 0, list: [], loaded: {} };
+  var preloadQueue = [];
+  var isSwitching = false;
 
   function encodePath(name) {
     return name.split('/').map(encodeURIComponent).join('/');
@@ -32,9 +35,17 @@ var Live2DPreview = (function () {
     destroyPixi();
     showCanvas2();
     removeFallback();
-    hideLoadingIndicator();
+    hideLoading();
+    clearSkinsData();
     currentModel = null;
-    currentTextureId = 0;
+    currentSkinId = 0;
+  }
+
+  function clearSkinsData() {
+    skinsData = { count: 0, list: [], loaded: {} };
+    preloadQueue = [];
+    isSwitching = false;
+    updateSkinSelector();
   }
 
   function destroyPixi() {
@@ -65,7 +76,7 @@ var Live2DPreview = (function () {
     if (!canvas2) return;
 
     currentModel = modelName;
-    currentTextureId = 0;
+    currentSkinId = 0;
     openPanel();
     removeFallback();
     destroyPixi();
@@ -76,11 +87,11 @@ var Live2DPreview = (function () {
     if (isCubism4) {
       loadModel4(modelName);
     } else {
-      loadModel2(modelName);
+      fetchSkinsList(modelName);
     }
   }
 
-  function loadModel2(modelName) {
+  function loadModel2(modelName, skinId) {
     destroyPixi();
     showCanvas2();
     removeFallback();
@@ -89,7 +100,16 @@ var Live2DPreview = (function () {
       showFallback('缺少 Live2D Cubism 2 库');
       return;
     }
-    var url = '../model/' + encodePath(modelName) + '/index.json';
+
+    var url;
+    if (skinId && skinId > 0) {
+      url = '../model/' + encodePath(modelName) + '/config-' + skinId + '.json';
+      currentSkinId = skinId;
+    } else {
+      url = '../model/' + encodePath(modelName) + '/index.json';
+      currentSkinId = 0;
+    }
+
     try {
       loadlive2d('live2d-canvas', url);
     } catch (e) {
@@ -129,11 +149,11 @@ var Live2DPreview = (function () {
     }
 
     var modelUrl = '../model/' + encodePath(modelName) + '/' + encodeURIComponent(findModel4Config(modelName));
-    showLoadingIndicator(true);
+    showLoading('加载 Cubism 4 模型...');
 
     PIXI.live2d.Live2DModel.from(modelUrl)
       .then(function (model) {
-        hideLoadingIndicator();
+        hideLoading();
         pixiModel = model;
 
         var sw = pixiApp.screen.width;
@@ -159,9 +179,11 @@ var Live2DPreview = (function () {
             if (pixiModel) pixiModel.focus(0, 0);
           });
         }
+
+        updateSkinSelectorForCubism4();
       })
       .catch(function (e) {
-        hideLoadingIndicator();
+        hideLoading();
         showFallback('Cubism 4 模型加载失败: ' + (e.message || e));
       });
   }
@@ -172,27 +194,177 @@ var Live2DPreview = (function () {
     return last + '.model3.json';
   }
 
-  function showLoadingIndicator(show) {
-    var container = document.getElementById('preview-canvas-wrap');
-    if (!container) return;
-    var el = container.querySelector('.pixi-loading');
-    if (show) {
-      if (!el) {
-        el = document.createElement('div');
-        el.className = 'pixi-loading';
-        el.innerHTML = '<div class="spinner"></div><p>加载 Cubism 4 模型中...</p>';
-        container.appendChild(el);
+  function fetchSkinsList(modelName) {
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '../admin/api/skins?model_name=' + encodeURIComponent(modelName), true);
+    xhr.onload = function () {
+      if (xhr.status === 200) {
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          if (resp.success && resp.data) {
+            skinsData.count = resp.data.skins_count;
+            skinsData.list = resp.data.skins || [];
+            if (skinsData.count > 0) {
+              currentSkinId = 1;
+              loadModel2(modelName, 1);
+            } else {
+              loadModel2(modelName, 0);
+            }
+            updateSkinSelector();
+            if (skinsData.count > 1) {
+              preloadAdjacentSkins(1);
+            }
+          }
+        } catch (e) {
+          loadModel2(modelName, 0);
+        }
+      } else {
+        loadModel2(modelName, 0);
       }
-      el.style.display = 'flex';
-    } else if (el) {
-      el.style.display = 'none';
+    };
+    xhr.onerror = function () {
+      loadModel2(modelName, 0);
+    };
+    xhr.send();
+  }
+
+  function updateSkinSelector() {
+    var container = document.getElementById('skin-selector');
+    if (!container) return;
+
+    if (skinsData.count <= 1) {
+      container.innerHTML = '<span class="skin-info">无可切换皮肤</span>';
+      return;
+    }
+
+    var displayId = currentSkinId || 1;
+    var html = '<select id="skin-dropdown" onchange="Live2DPreview.selectSkin(this.value)">';
+    for (var i = 0; i < skinsData.list.length; i++) {
+      var skin = skinsData.list[i];
+      var selected = (skin.id === displayId) ? ' selected' : '';
+      html += '<option value="' + skin.id + '"' + selected + '>' + skin.name + '</option>';
+    }
+    html += '</select>';
+    html += '<span class="skin-count">' + displayId + ' / ' + skinsData.count + '</span>';
+    html += '<button class="skin-prev" onclick="Live2DPreview.prevSkin()">◀</button>';
+    html += '<button class="skin-next" onclick="Live2DPreview.nextSkin()">▶</button>';
+    container.innerHTML = html;
+  }
+
+  function updateSkinSelectorForCubism4() {
+    var container = document.getElementById('skin-selector');
+    if (!container) return;
+    container.innerHTML = '<span class="skin-info">Cubism 4 模型皮肤切换暂不支持</span>';
+  }
+
+  function selectSkin(skinId) {
+    if (isSwitching || !currentModel) return;
+    skinId = parseInt(skinId, 10);
+    if (skinId < 1 || skinId > skinsData.count) return;
+    if (skinId === currentSkinId) return;
+
+    currentSkinId = skinId;
+    loadSkinConfig(skinId);
+    preloadAdjacentSkins(skinId);
+  }
+
+  function prevSkin() {
+    if (skinsData.count <= 1) return;
+    var newId = currentSkinId - 1;
+    if (newId < 1) newId = skinsData.count;
+    selectSkin(newId);
+  }
+
+  function nextSkin() {
+    if (skinsData.count <= 1) return;
+    var newId = currentSkinId + 1;
+    if (newId > skinsData.count) newId = 1;
+    selectSkin(newId);
+  }
+
+  function loadSkinConfig(skinId) {
+    if (typeof loadlive2d !== 'function') return;
+
+    isSwitching = true;
+
+    var url = '../model/' + encodePath(currentModel) + '/config-' + skinId + '.json';
+
+    try {
+      loadlive2d('live2d-canvas', url);
+      hideLoading();
+      isSwitching = false;
+      updateSkinSelector();
+      UI.toast('皮肤 ' + skinId, 'info');
+    } catch (e) {
+      hideLoading();
+      isSwitching = false;
+      UI.toast('切换失败: ' + e.message, 'error');
     }
   }
 
-  function hideLoadingIndicator() {
-    var container = document.getElementById('preview-canvas-wrap');
-    if (!container) return;
-    var el = container.querySelector('.pixi-loading');
+  function preloadAdjacentSkins(currentId) {
+    if (skinsData.count <= 1) return;
+
+    var preloadIds = [];
+    if (currentId > 1) preloadIds.push(currentId - 1);
+    if (currentId < skinsData.count) preloadIds.push(currentId + 1);
+
+    preloadIds.forEach(function (id) {
+      if (skinsData.loaded[id]) return;
+      preloadSkinTextures(id);
+    });
+  }
+
+  function preloadSkinTextures(skinId) {
+    var skin = skinsData.list.find(function (s) { return s.id === skinId; });
+    if (!skin || !skin.textures) return;
+
+    skin.textures.forEach(function (texPath) {
+      var img = new Image();
+      img.src = '../model/' + encodePath(currentModel) + '/' + encodePath(texPath);
+      img.onload = function () {
+        skinsData.loaded[skinId] = true;
+      };
+    });
+  }
+
+  function switchTexture() {
+    if (!currentModel) {
+      UI.toast('未加载模型', 'info');
+      return;
+    }
+
+    if (pixiModel) {
+      UI.toast('Cubism 4 模型纹理切换暂不支持', 'info');
+      return;
+    }
+
+    if (skinsData.count <= 1) {
+      UI.toast('此模型无可切换皮肤', 'info');
+      return;
+    }
+
+    nextSkin();
+  }
+
+  function showLoading(msg) {
+    var el = document.getElementById('preview-loading');
+    if (!el) {
+      var container = document.getElementById('preview-canvas-wrap');
+      if (!container) return;
+      el = document.createElement('div');
+      el.id = 'preview-loading';
+      el.className = 'preview-loading';
+      el.innerHTML = '<div class="spinner"></div><p class="loading-text"></p>';
+      container.appendChild(el);
+    }
+    var textEl = el.querySelector('.loading-text');
+    if (textEl) textEl.textContent = msg || '加载中...';
+    el.style.display = 'flex';
+  }
+
+  function hideLoading() {
+    var el = document.getElementById('preview-loading');
     if (el) el.style.display = 'none';
   }
 
@@ -210,10 +382,10 @@ var Live2DPreview = (function () {
       container.appendChild(fallback);
     }
     fallback.innerHTML =
-      '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:8px"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="m7 2v20M17 2v20M2 12h20M2 7h5M2 17h5M17 7h5M17 17h5"/></svg>' +
+      '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="margin-bottom:8px"><rect x="2" y="2" width="20" height="20" rx="2"/><path d="M7 2v20M17 2v20M2 7h20M2 17h5M17 17h5M7 7h5M17 7h5"/></svg>' +
       '<p style="font-size:14px;color:var(--text-secondary)">Live2D 预览</p>' +
       '<p class="small">模型: ' + UI.escapeHtml(currentModel || '') + '</p>' +
-      (msg ? '<p class="small" style="margin-top:8px;color:var(--accent-orange)">' + UI.escapeHtml(msg) + '</p>' : '');
+      (msg ? '<p class="error" style="margin-top:8px;color:var(--accent-orange)">' + UI.escapeHtml(msg) + '</p>' : '');
   }
 
   function removeFallback() {
@@ -223,60 +395,6 @@ var Live2DPreview = (function () {
     if (el && el.parentNode) el.parentNode.removeChild(el);
   }
 
-  function loadModelById(modelId, textureId) {
-    if (!canvas2) init();
-    if (!canvas2) return;
-
-    textureId = textureId || 0;
-    currentTextureId = textureId;
-    currentModel = null;
-    openPanel();
-    destroyPixi();
-    removeFallback();
-    showCanvas2();
-
-    var modelInfo = document.getElementById('preview-model-name');
-    if (modelInfo) modelInfo.textContent = '模型 #' + modelId;
-
-    if (typeof loadlive2d === 'function') {
-      try {
-        loadlive2d('live2d-canvas', '../model/' + encodePath(modelName) + '/index.json');
-      } catch (e) {
-        UI.toast('Live2D 加载错误: ' + e.message, 'error');
-        showFallback('Cubism 2 加载失败');
-      }
-    } else {
-      showFallback('缺少 Live2D 库');
-    }
-  }
-
-  function switchTexture() {
-    if (!currentModel) {
-      UI.toast('未加载模型', 'info');
-      return;
-    }
-
-    if (pixiModel) {
-      UI.toast('Cubism 4 模型纹理切换暂不支持', 'info');
-      return;
-    }
-
-    currentTextureId++;
-    var url = '../model/' + encodePath(currentModel) + '/index.json';
-
-    if (typeof loadlive2d === 'function') {
-      try {
-        loadlive2d('live2d-canvas', url);
-      } catch (e) {
-        currentTextureId = 0;
-        loadlive2d('live2d-canvas', '../model/' + encodePath(currentModel) + '/index.json');
-        UI.toast('已回到首个纹理', 'info');
-      }
-    } else {
-      UI.toast('Live2D 库未加载', 'info');
-    }
-  }
-
   function isOpen() {
     return panelOpen;
   }
@@ -284,9 +402,12 @@ var Live2DPreview = (function () {
   return {
     init: init,
     loadModel: loadModel,
-    loadModelById: loadModelById,
     closePanel: closePanel,
     switchTexture: switchTexture,
+    selectSkin: selectSkin,
+    prevSkin: prevSkin,
+    nextSkin: nextSkin,
     isOpen: isOpen,
+    getSkinsData: function () { return skinsData; },
   };
 })();

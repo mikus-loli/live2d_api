@@ -72,8 +72,8 @@ var UI = (function () {
     if (model.has_physics) statusTags += '<span class="tag tag-physics">物理</span>';
     if (model.has_pose) statusTags += '<span class="tag tag-pose">姿势</span>';
 
-    var texturesInfo = model.textures_count > 0
-      ? '<span class="card-meta-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>' + model.textures_count + ' 纹理</span>'
+    var skinsInfo = model.skins_count > 0
+      ? '<span class="card-meta-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>' + model.skins_count + ' 皮肤</span>'
       : '';
 
     var filesInfo = '<span class="card-meta-item"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></svg>' + model.file_count + ' 文件</span>';
@@ -110,7 +110,7 @@ var UI = (function () {
       '<div class="card-body">' +
       '<p class="card-message">' + escapeHtml(model.message || '') + '</p>' +
       '<div class="card-tags">' + statusTags + '</div>' +
-      '<div class="card-meta">' + texturesInfo + filesInfo + '</div>' +
+      '<div class="card-meta">' + skinsInfo + filesInfo + '</div>' +
       '</div>' +
       '<div class="card-actions">' +
       '<button class="btn btn-sm btn-glow" onclick="App.previewModel(\'' + escapeHtml(model.name) + '\')">预览</button>' +

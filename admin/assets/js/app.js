@@ -526,6 +526,7 @@ var App = (function () {
     offsetY: 0,
     width: 300,
     height: 400,
+    scale: 1,
   };
   var genPixiApp = null;
   var genCubism2Loaded = false;
@@ -542,6 +543,7 @@ var App = (function () {
     genState.offsetY = 0;
     genState.width = 300;
     genState.height = 400;
+    genState.scale = 1;
 
     genState.isCubism4 = false;
     for (var i = 0; i < models.length; i++) {
@@ -571,6 +573,11 @@ var App = (function () {
       posBtns[i].classList.toggle('active', posBtns[i].getAttribute('data-pos') === 'right');
     }
 
+    var scaleBtns = document.querySelectorAll('.gen-btn[data-scale]');
+    for (var i = 0; i < scaleBtns.length; i++) {
+      scaleBtns[i].classList.toggle('active', parseFloat(scaleBtns[i].getAttribute('data-scale')) === 1);
+    }
+
     showGeneratedCode();
   }
 
@@ -587,6 +594,16 @@ var App = (function () {
       posBtns[i].classList.toggle('active', posBtns[i].getAttribute('data-pos') === pos);
     }
     updateMockModelPosition();
+    updateGenCode();
+  }
+
+  function setGenScale(scale) {
+    genState.scale = scale;
+    var scaleBtns = document.querySelectorAll('.gen-btn[data-scale]');
+    for (var i = 0; i < scaleBtns.length; i++) {
+      scaleBtns[i].classList.toggle('active', parseFloat(scaleBtns[i].getAttribute('data-scale')) === scale);
+    }
+    loadGenPreview();
     updateGenCode();
   }
 
@@ -626,8 +643,9 @@ var App = (function () {
     if (!wrap) return;
     while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
 
-    var cw = Math.round(genState.width * MOCK_SCALE);
-    var ch = Math.round(genState.height * MOCK_SCALE);
+    var scale = genState.scale || 1;
+    var cw = Math.round(genState.width * MOCK_SCALE * scale);
+    var ch = Math.round(genState.height * MOCK_SCALE * scale);
 
     var canvas = document.createElement('canvas');
     canvas.id = 'gen-preview-canvas';
@@ -650,8 +668,9 @@ var App = (function () {
     var model = document.getElementById('gen-mock-model');
     if (!model) return;
 
-    var cw = Math.round(genState.width * MOCK_SCALE);
-    var ch = Math.round(genState.height * MOCK_SCALE);
+    var scale = genState.scale || 1;
+    var cw = Math.round(genState.width * MOCK_SCALE * scale);
+    var ch = Math.round(genState.height * MOCK_SCALE * scale);
     var ox = Math.round(genState.offsetX * MOCK_SCALE);
     var oy = Math.round(genState.offsetY * MOCK_SCALE);
 
@@ -666,6 +685,7 @@ var App = (function () {
       model.style.left = 'auto';
     }
     model.style.bottom = oy + 'px';
+    model.style.transform = 'none';
 
     var canvas = document.getElementById('gen-preview-canvas');
     if (canvas) {
@@ -783,16 +803,18 @@ var App = (function () {
   }
 
   function getCodeTemplate2(modelName, apiBase, s) {
+    var w = Math.round(s.width * (s.scale || 1));
+    var h = Math.round(s.height * (s.scale || 1));
     return buildEmbedCSS(s) +
-      '<canvas id="live2d" width="' + s.width + '" height="' + s.height + '"></canvas>\n' +
+      '<canvas id="live2d" width="' + w + '" height="' + h + '"></canvas>\n' +
       '<script>\n' +
       '(function(){var s=document.createElement("script");s.src="' + apiBase + '/live2d.min.js";s.onload=function(){loadlive2d("live2d","' + apiBase + '/model/' + encodePath(modelName) + '/index.json")};document.head.appendChild(s)})();\n' +
       '<\/script>';
   }
 
   function getCodeTemplate4(modelName, modelLast, apiBase, s) {
-    var w = s.width;
-    var h = s.height;
+    var w = Math.round(s.width * (s.scale || 1));
+    var h = Math.round(s.height * (s.scale || 1));
     return buildEmbedCSS(s) +
       '<canvas id="live2d" width="' + w + '" height="' + h + '"></canvas>\n' +
       '<script>\n' +
@@ -993,6 +1015,7 @@ var App = (function () {
     selectScannedDir: selectScannedDir,
     generateCode: generateCode,
     setGenPos: setGenPos,
+    setGenScale: setGenScale,
     updateGenCode: updateGenCode,
     closeGenModal: function () {
       destroyGenPixi();
