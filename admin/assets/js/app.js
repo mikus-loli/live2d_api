@@ -886,7 +886,10 @@ var App = (function () {
       '      var cv=document.getElementById("live2d");\n' +
       '      var app=new PIXI.Application({view:cv,width:' + w + ',height:' + h + ',backgroundAlpha:0,autoDensity:true,resolution:window.devicePixelRatio||1});\n' +
       '      PIXI.live2d.Live2DModel.from(b+"/model/' + encodePath(modelName) + '/' + encodeURIComponent(modelLast) + '.model3.json").then(function(m){\n' +
-      '        var sc=Math.min(' + w + '/m.width*0.85,' + h + '/m.height*0.85);m.scale.set(sc);m.x=' + Math.round(w / 2) + ';m.y=' + Math.round(h / 2) + ';app.stage.addChild(m);\n' +
+      '        m.anchor.set(0.5,0.5);m.x=' + Math.round(w / 2) + ';m.y=' + Math.round(h / 2) + ';\n' +
+      '        var ow=m.width/m.scale.x,oh=m.height/m.scale.y;\n' +
+      '        var sc=Math.min(' + w + '/ow,' + h + '/oh);m.scale.set(sc);\n' +
+      '        app.stage.addChild(m);\n' +
       '        cv.addEventListener("pointermove",function(e){var r=cv.getBoundingClientRect();m.focus(e.clientX-r.left,e.clientY-r.top)});\n' +
       '        cv.addEventListener("pointerleave",function(){m.focus(0,0)});\n' +
       '      });\n' +
