@@ -101,6 +101,17 @@ var Live2DPreview = (function () {
       return;
     }
 
+    var wrap = document.getElementById('preview-canvas-wrap');
+    if (wrap && canvas2) {
+      var dpr = window.devicePixelRatio || 1;
+      var displayW = wrap.clientWidth;
+      var displayH = wrap.clientHeight;
+      canvas2.width = displayW * dpr;
+      canvas2.height = displayH * dpr;
+      canvas2.style.width = displayW + 'px';
+      canvas2.style.height = displayH + 'px';
+    }
+
     var url;
     if (skinId && skinId > 0) {
       url = '../model/' + encodePath(modelName) + '/config-' + skinId + '.json';
@@ -158,12 +169,15 @@ var Live2DPreview = (function () {
 
         var sw = pixiApp.screen.width;
         var sh = pixiApp.screen.height;
-        var origW = model.width;
-        var origH = model.height;
-        var scale = Math.min(sw / origW * 0.85, sh / origH * 0.85);
+
+        model.anchor.set(0.5, 0.5);
+        model.x = sw / 2;
+        model.y = sh / 2;
+
+        var origW = model.width / model.scale.x;
+        var origH = model.height / model.scale.y;
+        var scale = Math.min(sw / origW, sh / origH);
         model.scale.set(scale);
-        model.x = (sw - origW * scale) / 2;
-        model.y = (sh - origH * scale) / 2;
 
         pixiApp.stage.addChild(model);
 

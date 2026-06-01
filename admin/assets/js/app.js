@@ -653,7 +653,10 @@ var App = (function () {
     canvas.height = ch;
     canvas.style.width = cw + 'px';
     canvas.style.height = ch + 'px';
+    canvas.style.cursor = 'grab';
     wrap.appendChild(canvas);
+
+    setupGenPreviewDrag();
 
     updateMockModelPosition();
 
@@ -662,6 +665,59 @@ var App = (function () {
     } else {
       loadGenPreview2(canvas);
     }
+  }
+
+  function setupGenPreviewDrag() {
+    var model = document.getElementById('gen-mock-model');
+    if (!model) return;
+
+    var isDragging = false;
+    var startX, startY;
+    var startOffsetX, startOffsetY;
+
+    model.addEventListener('mousedown', function (e) {
+      isDragging = true;
+      startX = e.clientX;
+      startY = e.clientY;
+      startOffsetX = genState.offsetX;
+      startOffsetY = genState.offsetY;
+      model.style.cursor = 'grabbing';
+      e.preventDefault();
+    });
+
+    document.addEventListener('mousemove', function (e) {
+      if (!isDragging) return;
+      var dx = genState.position === 'left'
+        ? e.clientX - startX
+        : startX - e.clientX;
+      var dy = startY - e.clientY;
+      var rawOffsetX = startOffsetX + dx / MOCK_SCALE;
+      var rawOffsetY = startOffsetY + dy / MOCK_SCALE;
+
+      var mockPage = document.getElementById('gen-mock-page');
+      var maxOffsetX = mockPage ? (mockPage.clientWidth / MOCK_SCALE - genState.width * (genState.scale || 1)) : 9999;
+      var maxOffsetY = mockPage ? (mockPage.clientHeight / MOCK_SCALE - genState.height * (genState.scale || 1)) : 9999;
+      maxOffsetX = Math.max(0, maxOffsetX);
+      maxOffsetY = Math.max(0, maxOffsetY);
+
+      var newOffsetX = Math.max(0, Math.min(Math.round(rawOffsetX), Math.round(maxOffsetX)));
+      var newOffsetY = Math.max(0, Math.min(Math.round(rawOffsetY), Math.round(maxOffsetY)));
+      genState.offsetX = newOffsetX;
+      genState.offsetY = newOffsetY;
+      var offsetXEl = document.getElementById('gen-offset-x');
+      var offsetYEl = document.getElementById('gen-offset-y');
+      if (offsetXEl) offsetXEl.value = newOffsetX;
+      if (offsetYEl) offsetYEl.value = newOffsetY;
+      updateMockModelPosition();
+      updateGenCode();
+    });
+
+    document.addEventListener('mouseup', function () {
+      if (isDragging) {
+        isDragging = false;
+        model.style.cursor = 'grab';
+      }
+    });
   }
 
   function updateMockModelPosition() {
@@ -746,10 +802,13 @@ var App = (function () {
 
     var modelUrl = genState.apiBase + '/model/' + encodePath(genState.modelName) + '/' + encodeURIComponent(genState.modelLast) + '.model3.json';
     PIXI.live2d.Live2DModel.from(modelUrl).then(function (m) {
-      var sc = Math.min(cw / m.width * 0.85, ch / m.height * 0.85);
-      m.scale.set(sc);
+      m.anchor.set(0.5, 0.5);
       m.x = cw / 2;
       m.y = ch / 2;
+      var origW = m.width / m.scale.x;
+      var origH = m.height / m.scale.y;
+      var sc = Math.min(cw / origW, ch / origH);
+      m.scale.set(sc);
       genPixiApp.stage.addChild(m);
     }).catch(function () {});
   }
