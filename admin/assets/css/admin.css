@@ -1749,6 +1749,31 @@ body::before {
   border-color: var(--accent-cyan);
 }
 
+.gen-config-textarea {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  outline: none;
+  resize: vertical;
+  min-height: 60px;
+  line-height: 1.6;
+  transition: border-color 0.2s;
+}
+
+.gen-config-textarea:focus {
+  border-color: var(--accent-cyan);
+}
+
+.gen-config-textarea::placeholder {
+  color: var(--text-tertiary);
+  opacity: 0.7;
+}
+
 .gen-btn-group {
   display: flex;
   gap: 0;

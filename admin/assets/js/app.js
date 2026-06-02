@@ -527,6 +527,7 @@ var App = (function () {
     width: 300,
     height: 400,
     scale: 1,
+    messages: ['你好呀~', '今天天气真好!', '有什么想问的吗?', '欢迎来到这里~', '我是你的看板娘哦~'],
   };
   var genPixiApp = null;
   var genCubism2Loaded = false;
@@ -572,6 +573,7 @@ var App = (function () {
     genState.width = 300;
     genState.height = 400;
     genState.scale = 1;
+    genState.messages = ['你好呀~', '今天天气真好!', '有什么想问的吗?', '欢迎来到这里~', '我是你的看板娘哦~'];
 
     genState.isCubism4 = false;
     for (var i = 0; i < models.length; i++) {
@@ -629,6 +631,11 @@ var App = (function () {
         scaleBtns[j].classList.toggle('active', parseFloat(scaleBtns[j].getAttribute('data-scale')) === 1);
       }
 
+      var messagesEl = document.getElementById('gen-messages');
+      if (messagesEl) {
+        messagesEl.value = genState.messages ? genState.messages.join('\n') : '你好呀~\n今天天气真好!\n有什么想问的吗?\n欢迎来到这里~\n我是你的看板娘哦~';
+      }
+
       showGeneratedCode();
     }
   }
@@ -659,15 +666,40 @@ var App = (function () {
     updateGenCode();
   }
 
+  function updateGenMessages() {
+    var ta = document.getElementById('gen-messages');
+    if (!ta) return;
+    var lines = ta.value.split('\n');
+    genState.messages = [];
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (line) genState.messages.push(line);
+    }
+    if (genState.messages.length === 0) {
+      genState.messages = ['你好呀~'];
+    }
+    updateGenCode();
+  }
+
   function updateGenCode() {
     var offsetXEl = document.getElementById('gen-offset-x');
     var offsetYEl = document.getElementById('gen-offset-y');
     var widthEl = document.getElementById('gen-width');
     var heightEl = document.getElementById('gen-height');
+    var messagesEl = document.getElementById('gen-messages');
     if (offsetXEl) genState.offsetX = parseInt(offsetXEl.value, 10) || 0;
     if (offsetYEl) genState.offsetY = parseInt(offsetYEl.value, 10) || 0;
     if (widthEl) genState.width = Math.max(100, parseInt(widthEl.value, 10) || 300);
     if (heightEl) genState.height = Math.max(100, parseInt(heightEl.value, 10) || 400);
+    if (messagesEl) {
+      var lines = messagesEl.value.split('\n');
+      genState.messages = [];
+      for (var i = 0; i < lines.length; i++) {
+        var line = lines[i].trim();
+        if (line) genState.messages.push(line);
+      }
+      if (genState.messages.length === 0) genState.messages = ['你好呀~'];
+    }
 
     updateMockModelPosition();
 
@@ -689,13 +721,6 @@ var App = (function () {
   var MOCK_SCALE = MOCK_PAGE_W / 1920;
   var GEN_PREVIEW_SCALE = 1.5;
   var genDialogTimeout = null;
-  var genDefaultMessages = [
-    '你好呀~',
-    '今天天气真好!',
-    '有什么想问的吗?',
-    '欢迎来到这里~',
-    '我是你的看板娘哦~'
-  ];
 
   function showGenDialog(text, duration) {
     var dialog = document.getElementById('gen-dialog');
@@ -729,7 +754,8 @@ var App = (function () {
   }
 
   function showGenRandomMessage() {
-    var msg = genDefaultMessages[Math.floor(Math.random() * genDefaultMessages.length)];
+    var msgs = genState.messages && genState.messages.length > 0 ? genState.messages : ['你好呀~'];
+    var msg = msgs[Math.floor(Math.random() * msgs.length)];
     showGenDialog(msg, 4000);
   }
 
@@ -969,6 +995,7 @@ var App = (function () {
     var w = Math.round(s.width * (s.scale || 1));
     var h = Math.round(s.height * (s.scale || 1));
     var pos = s.position === 'left' ? 'left' : 'right';
+    var msgsJson = JSON.stringify(s.messages || ['你好呀~']);
     var dialogCSS = '#live2d-dialog{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(' + s.offsetY + 'px + ' + (h + 20) + 'px);background:rgba(255,255,255,0.95);border-radius:12px;padding:12px 16px;max-width:280px;min-width:120px;box-shadow:0 4px 20px rgba(0,0,0,0.15);z-index:99998;display:none;animation:dialogFadeIn 0.3s ease}#live2d-dialog.show{display:block}#live2d-dialog::after{content:"";position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid rgba(255,255,255,0.95)}#dialog-content{font-size:14px;color:#333;text-align:center;line-height:1.4}@keyframes dialogFadeIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
     return buildEmbedCSS(s) +
       '<style>' + dialogCSS + '</style>\n' +
@@ -977,15 +1004,33 @@ var App = (function () {
       '<script>\n' +
       '(function(){\n' +
       'var pos="' + pos + '",ox=' + s.offsetX + ',w=' + w + ',h=' + h + ';\n' +
-      'var msgs=["你好呀~","今天天气真好!","有什么想问的吗?","欢迎来到这里~","我是你的看板娘哦~"];\n' +
-      'var dialogTimer=null;\n' +
+      'var msgs=' + msgsJson + ';\n' +
+      'var hoverMsgs=["干嘛呢你，快把手拿开～～","鼠…鼠标放错地方了！","你要干嘛呀？","怕怕(ノ≧∇≦)ノ","Hentai！","真…真的是不知羞耻！","不要动手动脚的！"];\n' +
+      'var clickMsgs=["是…是不小心碰到了吧…","萝莉控是什么呀？","再摸的话我可要报警了！⌇●﹏●⌇","110 吗，这里有个变态一直在摸我(ó﹏ò｡)","干嘛动我呀！小心我咬你！","别摸我，有什么好摸的！"];\n' +
+      'var timeMsgs={"6-7":"早上好！一日之计在于晨，美好的一天就要开始了~","8-11":"上午好！工作顺利嘛，不要久坐，多起来走动走动哦！","12-13":"中午了，工作了一个上午，现在是午餐时间！","14-17":"午后很容易犯困呢，今天的运动目标完成了吗？","18-19":"傍晚了！窗外夕阳的景色很美丽呢~","20-21":"晚上好，今天过得怎么样？","22-23":["已经这么晚了呀，早点休息吧，晚安~","深夜时要爱护眼睛呀！"],"0-5":"你是夜猫子呀？这么晚还不睡觉，明天起的来嘛？"};\n' +
+      'var consoleMsg="哈哈，你打开了控制台，是想要看看我的小秘密吗？";\n' +
+      'var copyMsg="你都复制了些什么呀，转载要记得加上出处哦！";\n' +
+      'var backMsg="哇，你终于回来了~";\n' +
+      'var welcomeMsg="欢迎来到这里~今天也要开心哦！";\n' +
+      'var scrollMsgs={"25":"已经阅读四分之一啦，继续加油！","50":"已经阅读一半啦，觉得怎么样？","75":"马上就要读完了，精彩还在后面！","100":"哇，你竟然看完了！是不是很棒呢？"};\n' +
+      'var dialogTimer=null,idleTimer=null,hoverTimer=null,scrollFired={};\n' +
+      'function rnd(a){return a[Math.floor(Math.random()*a.length)]}\n' +
       'function updateDialogPos(){var el=document.getElementById("live2d-dialog");if(!el)return;var dl;if(pos==="left"){dl=ox+Math.round(w/2)}else{dl=window.innerWidth-ox-Math.round(w/2)}el.style.left=dl+"px"}\n' +
-      'function showDialog(t,d){var el=document.getElementById("live2d-dialog"),c=document.getElementById("dialog-content");if(!el||!c)return;if(dialogTimer){clearTimeout(dialogTimer);dialogTimer=null}c.textContent=t;el.classList.add("show");if(d&&d>0){dialogTimer=setTimeout(function(){hideDialog()},d)}}\n' +
+      'function showDialog(t,d){var el=document.getElementById("live2d-dialog"),c=document.getElementById("dialog-content");if(!el||!c)return;if(dialogTimer){clearTimeout(dialogTimer);dialogTimer=null}c.textContent=t;el.classList.add("show");resetIdle();if(d&&d>0){dialogTimer=setTimeout(function(){hideDialog()},d)}}\n' +
       'function hideDialog(){var el=document.getElementById("live2d-dialog");if(el)el.classList.remove("show");if(dialogTimer){clearTimeout(dialogTimer);dialogTimer=null}}\n' +
-      'function showRandomMsg(){var m=msgs[Math.floor(Math.random()*msgs.length)];showDialog(m,4000)}\n' +
+      'function showRandomMsg(){showDialog(rnd(msgs),5000)}\n' +
+      'function getTimeMsg(){var h=new Date().getHours(),r;for(var k in timeMsgs){var p=k.split("-"),a=parseInt(p[0]),b=parseInt(p[1]);if(h>=a&&h<=b){r=timeMsgs[k];break}}if(!r)return null;return Array.isArray(r)?r[Math.floor(Math.random()*r.length)]:r}\n' +
+      'function resetIdle(){if(idleTimer)clearTimeout(idleTimer);idleTimer=setTimeout(function(){showRandomMsg()},30000)}\n' +
       'updateDialogPos();window.addEventListener("resize",updateDialogPos);\n' +
-      'var cv=document.getElementById("live2d");cv.addEventListener("click",showRandomMsg);\n' +
-      'var s=document.createElement("script");s.src="' + apiBase + '/live2d.min.js";s.onload=function(){loadlive2d("live2d","' + apiBase + '/model/' + encodePath(modelName) + '/index.json");setTimeout(function(){cv.classList.add("show");showRandomMsg()},800)};document.head.appendChild(s)\n' +
+      'var cv=document.getElementById("live2d");\n' +
+      'cv.addEventListener("mouseenter",function(){hoverTimer=setTimeout(function(){showDialog(rnd(hoverMsgs),4000)},500)});\n' +
+      'cv.addEventListener("mouseleave",function(){if(hoverTimer){clearTimeout(hoverTimer);hoverTimer=null}});\n' +
+      'cv.addEventListener("click",function(){showDialog(rnd(clickMsgs),4000)});\n' +
+      'document.addEventListener("copy",function(){showDialog(copyMsg,4000)});\n' +
+      'document.addEventListener("visibilitychange",function(){if(!document.hidden)showDialog(backMsg,4000)});\n' +
+      'window.addEventListener("scroll",function(){var st=document.documentElement.scrollTop||document.body.scrollTop,sh=document.documentElement.scrollHeight-document.documentElement.clientHeight,pct=Math.round(st/sh*100);["25","50","75","100"].forEach(function(m){if(pct>=parseInt(m)&&!scrollFired[m]){scrollFired[m]=true;showDialog(scrollMsgs[m],4000)}})});\n' +
+      'setInterval(function(){if(window.outerWidth-window.innerWidth>160||window.outerHeight-window.innerHeight>160){if(consoleMsg){showDialog(consoleMsg,4000);consoleMsg=null}}},1000);\n' +
+      'var s=document.createElement("script");s.src="' + apiBase + '/live2d.min.js";s.onload=function(){loadlive2d("live2d","' + apiBase + '/model/' + encodePath(modelName) + '/index.json");setTimeout(function(){cv.classList.add("show");var tm=getTimeMsg();if(tm)showDialog(tm,6000);else showDialog(welcomeMsg,6000)},800)};document.head.appendChild(s)\n' +
       '})();\n' +
       '<\/script>';
   }
@@ -994,6 +1039,7 @@ var App = (function () {
     var w = Math.round(s.width * (s.scale || 1));
     var h = Math.round(s.height * (s.scale || 1));
     var pos = s.position === 'left' ? 'left' : 'right';
+    var msgsJson = JSON.stringify(s.messages || ['你好呀~']);
     var dialogCSS = '#live2d-dialog{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(' + s.offsetY + 'px + ' + (h + 20) + 'px);background:rgba(255,255,255,0.95);border-radius:12px;padding:12px 16px;max-width:280px;min-width:120px;box-shadow:0 4px 20px rgba(0,0,0,0.15);z-index:99998;display:none;animation:dialogFadeIn 0.3s ease}#live2d-dialog.show{display:block}#live2d-dialog::after{content:"";position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid rgba(255,255,255,0.95)}#dialog-content{font-size:14px;color:#333;text-align:center;line-height:1.4}@keyframes dialogFadeIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
     return buildEmbedCSS(s) +
       '<style>' + dialogCSS + '</style>\n' +
@@ -1002,19 +1048,36 @@ var App = (function () {
       '<script>\n' +
       '(function(){\n' +
       'var b="' + apiBase + '",w=' + w + ',h=' + h + ',pos="' + pos + '",ox=' + s.offsetX + ',oy=' + s.offsetY + ';\n' +
-      'var msgs=["你好呀~","今天天气真好!","有什么想问的吗?","欢迎来到这里~","我是你的看板娘哦~"];\n' +
-      'var dialogTimer=null;\n' +
+      'var msgs=' + msgsJson + ';\n' +
+      'var hoverMsgs=["干嘛呢你，快把手拿开～～","鼠…鼠标放错地方了！","你要干嘛呀？","怕怕(ノ≧∇≦)ノ","Hentai！","真…真的是不知羞耻！","不要动手动脚的！"];\n' +
+      'var clickMsgs=["是…是不小心碰到了吧…","萝莉控是什么呀？","再摸的话我可要报警了！⌇●﹏●⌇","110 吗，这里有个变态一直在摸我(ó﹏ò｡)","干嘛动我呀！小心我咬你！","别摸我，有什么好摸的！"];\n' +
+      'var timeMsgs={"6-7":"早上好！一日之计在于晨，美好的一天就要开始了~","8-11":"上午好！工作顺利嘛，不要久坐，多起来走动走动哦！","12-13":"中午了，工作了一个上午，现在是午餐时间！","14-17":"午后很容易犯困呢，今天的运动目标完成了吗？","18-19":"傍晚了！窗外夕阳的景色很美丽呢~","20-21":"晚上好，今天过得怎么样？","22-23":["已经这么晚了呀，早点休息吧，晚安~","深夜时要爱护眼睛呀！"],"0-5":"你是夜猫子呀？这么晚还不睡觉，明天起的来嘛？"};\n' +
+      'var consoleMsg="哈哈，你打开了控制台，是想要看看我的小秘密吗？";\n' +
+      'var copyMsg="你都复制了些什么呀，转载要记得加上出处哦！";\n' +
+      'var backMsg="哇，你终于回来了~";\n' +
+      'var welcomeMsg="欢迎来到这里~今天也要开心哦！";\n' +
+      'var scrollMsgs={"25":"已经阅读四分之一啦，继续加油！","50":"已经阅读一半啦，觉得怎么样？","75":"马上就要读完了，精彩还在后面！","100":"哇，你竟然看完了！是不是很棒呢？"};\n' +
+      'var dialogTimer=null,idleTimer=null,hoverTimer=null,scrollFired={};\n' +
+      'function rnd(a){return a[Math.floor(Math.random()*a.length)]}\n' +
       'function updateDialogPos(){var el=document.getElementById("live2d-dialog");if(!el)return;var dl;if(pos==="left"){dl=ox+Math.round(w/2)}else{dl=window.innerWidth-ox-Math.round(w/2)}el.style.left=dl+"px"}\n' +
-      'function showDialog(t,d){var el=document.getElementById("live2d-dialog"),c=document.getElementById("dialog-content");if(!el||!c)return;if(dialogTimer){clearTimeout(dialogTimer);dialogTimer=null}c.textContent=t;el.classList.add("show");if(d&&d>0){dialogTimer=setTimeout(function(){hideDialog()},d)}}\n' +
+      'function showDialog(t,d){var el=document.getElementById("live2d-dialog"),c=document.getElementById("dialog-content");if(!el||!c)return;if(dialogTimer){clearTimeout(dialogTimer);dialogTimer=null}c.textContent=t;el.classList.add("show");resetIdle();if(d&&d>0){dialogTimer=setTimeout(function(){hideDialog()},d)}}\n' +
       'function hideDialog(){var el=document.getElementById("live2d-dialog");if(el)el.classList.remove("show");if(dialogTimer){clearTimeout(dialogTimer);dialogTimer=null}}\n' +
-      'function showRandomMsg(){var m=msgs[Math.floor(Math.random()*msgs.length)];showDialog(m,4000)}\n' +
+      'function showRandomMsg(){showDialog(rnd(msgs),5000)}\n' +
+      'function getTimeMsg(){var h=new Date().getHours(),r;for(var k in timeMsgs){var p=k.split("-"),a=parseInt(p[0]),b=parseInt(p[1]);if(h>=a&&h<=b){r=timeMsgs[k];break}}if(!r)return null;return Array.isArray(r)?r[Math.floor(Math.random()*r.length)]:r}\n' +
+      'function resetIdle(){if(idleTimer)clearTimeout(idleTimer);idleTimer=setTimeout(function(){showRandomMsg()},30000)}\n' +
       'updateDialogPos();window.addEventListener("resize",updateDialogPos);\n' +
+      'document.addEventListener("copy",function(){showDialog(copyMsg,4000)});\n' +
+      'document.addEventListener("visibilitychange",function(){if(!document.hidden)showDialog(backMsg,4000)});\n' +
+      'window.addEventListener("scroll",function(){var st=document.documentElement.scrollTop||document.body.scrollTop,sh=document.documentElement.scrollHeight-document.documentElement.clientHeight,pct=Math.round(st/sh*100);["25","50","75","100"].forEach(function(m){if(pct>=parseInt(m)&&!scrollFired[m]){scrollFired[m]=true;showDialog(scrollMsgs[m],4000)}})});\n' +
+      'setInterval(function(){if(window.outerWidth-window.innerWidth>160||window.outerHeight-window.innerHeight>160){if(consoleMsg){showDialog(consoleMsg,4000);consoleMsg=null}}},1000);\n' +
       'function ls(u,c){var d=document.querySelector(\'script[src="\'+u+\'"]\');if(d){if(c)c();return}var s=document.createElement("script");s.src=u;s.onload=c;document.head.appendChild(s)}\n' +
       'ls(b+"/live2dcubismcore.min.js",function(){\n' +
       '  ls(b+"/pixi.min.js",function(){\n' +
       '    ls(b+"/cubism4.min.js",function(){\n' +
       '      var cv=document.getElementById("live2d");\n' +
-      '      cv.addEventListener("click",showRandomMsg);\n' +
+      '      cv.addEventListener("mouseenter",function(){hoverTimer=setTimeout(function(){showDialog(rnd(hoverMsgs),4000)},500)});\n' +
+      '      cv.addEventListener("mouseleave",function(){if(hoverTimer){clearTimeout(hoverTimer);hoverTimer=null}});\n' +
+      '      cv.addEventListener("click",function(){showDialog(rnd(clickMsgs),4000)});\n' +
       '      var app=new PIXI.Application({view:cv,width:' + w + ',height:' + h + ',backgroundAlpha:0,autoDensity:true,resolution:window.devicePixelRatio||1});\n' +
       '      PIXI.live2d.Live2DModel.from(b+"/model/' + encodePath(modelName) + '/' + encodeURIComponent(modelLast) + '.model3.json").then(function(m){\n' +
       '        m.anchor.set(0.5,0.5);m.x=' + Math.round(w / 2) + ';m.y=' + Math.round(h / 2) + ';\n' +
@@ -1023,7 +1086,8 @@ var App = (function () {
       '        app.stage.addChild(m);\n' +
       '        cv.addEventListener("pointermove",function(e){var r=cv.getBoundingClientRect();m.focus(e.clientX-r.left,e.clientY-r.top)});\n' +
       '        cv.addEventListener("pointerleave",function(){m.focus(0,0)});\n' +
-      '        showRandomMsg();\n' +
+      '        cv.classList.add("show");\n' +
+      '        var tm=getTimeMsg();if(tm)showDialog(tm,6000);else showDialog(welcomeMsg,6000);\n' +
       '      });\n' +
       '    });\n' +
       '  });\n' +
@@ -1211,6 +1275,7 @@ var App = (function () {
     setGenPos: setGenPos,
     setGenScale: setGenScale,
     updateGenCode: updateGenCode,
+    updateGenMessages: updateGenMessages,
     closeGenModal: function () {
       destroyGenPixi();
       UI.closeModal('modal-generate');

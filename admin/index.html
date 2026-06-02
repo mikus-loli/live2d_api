@@ -253,6 +253,10 @@
                         <button class="gen-btn" data-scale="2" onclick="App.setGenScale(2)">2x</button>
                     </div>
                 </div>
+                <div class="gen-config-group">
+                    <label class="gen-config-label">聊天内容 <span style="color:var(--text-tertiary);font-size:11px">（每行一条消息）</span></label>
+                    <textarea class="gen-config-textarea" id="gen-messages" rows="4" onchange="App.updateGenMessages()" placeholder="你好呀~&#10;今天天气真好!&#10;有什么想问的吗?&#10;欢迎来到这里~&#10;我是你的看板娘哦~"></textarea>
+                </div>
                 <div class="code-block">
                     <div class="code-header">
                         <span class="code-lang" id="generate-code-lang">HTML + JavaScript</span>
