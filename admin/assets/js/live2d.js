@@ -9,6 +9,14 @@ var Live2DPreview = (function () {
   var skinsData = { count: 0, list: [], loaded: {} };
   var preloadQueue = [];
   var isSwitching = false;
+  var dialogTimeout = null;
+  var defaultMessages = [
+    '你好呀~',
+    '今天天气真好!',
+    '有什么想问的吗?',
+    '欢迎来到这里~',
+    '我是你的看板娘哦~'
+  ];
 
   function encodePath(name) {
     return name.split('/').map(encodeURIComponent).join('/');
@@ -16,6 +24,43 @@ var Live2DPreview = (function () {
 
   function init() {
     canvas2 = document.getElementById('live2d-canvas');
+  }
+
+  function showDialog(text, duration) {
+    var dialog = document.getElementById('live2d-dialog');
+    var content = document.getElementById('dialog-content');
+    if (!dialog || !content) return;
+
+    if (dialogTimeout) {
+      clearTimeout(dialogTimeout);
+      dialogTimeout = null;
+    }
+
+    content.textContent = text;
+    dialog.classList.add('show');
+
+    if (duration && duration > 0) {
+      dialogTimeout = setTimeout(function () {
+        hideDialog();
+      }, duration);
+    }
+  }
+
+  function hideDialog() {
+    var dialog = document.getElementById('live2d-dialog');
+    if (!dialog) return;
+
+    dialog.classList.remove('show');
+
+    if (dialogTimeout) {
+      clearTimeout(dialogTimeout);
+      dialogTimeout = null;
+    }
+  }
+
+  function showRandomMessage() {
+    var msg = defaultMessages[Math.floor(Math.random() * defaultMessages.length)];
+    showDialog(msg, 4000);
   }
 
   function openPanel() {
@@ -34,6 +79,7 @@ var Live2DPreview = (function () {
     }
     destroyPixi();
     destroyCanvas2();
+    hideDialog();
     removeFallback();
     hideLoading();
     clearSkinsData();
@@ -49,11 +95,12 @@ var Live2DPreview = (function () {
     }
     var wrap = document.getElementById('preview-canvas-wrap');
     if (wrap) {
+      var dialog = document.getElementById('live2d-dialog');
       var newCanvas = document.createElement('canvas');
       newCanvas.id = 'live2d-canvas';
       newCanvas.width = 480;
       newCanvas.height = 600;
-      wrap.insertBefore(newCanvas, wrap.firstChild);
+      wrap.insertBefore(newCanvas, dialog ? dialog.nextSibling : wrap.firstChild);
       canvas2 = newCanvas;
     }
   }
@@ -97,6 +144,7 @@ var Live2DPreview = (function () {
     openPanel();
     removeFallback();
     destroyPixi();
+    hideDialog();
 
     var modelInfo = document.getElementById('preview-model-name');
     if (modelInfo) modelInfo.textContent = modelName;
@@ -106,6 +154,8 @@ var Live2DPreview = (function () {
     } else {
       fetchSkinsList(modelName);
     }
+
+    setTimeout(showRandomMessage, 800);
   }
 
   function loadModel2(modelName, skinId) {
@@ -440,5 +490,8 @@ var Live2DPreview = (function () {
     nextSkin: nextSkin,
     isOpen: isOpen,
     getSkinsData: function () { return skinsData; },
+    showDialog: showDialog,
+    hideDialog: hideDialog,
+    showRandomMessage: showRandomMessage,
   };
 })();

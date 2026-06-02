@@ -636,6 +636,50 @@ var App = (function () {
   var MOCK_PAGE_H = 250;
   var MOCK_SCALE = MOCK_PAGE_W / 1920;
   var GEN_PREVIEW_SCALE = 1.5;
+  var genDialogTimeout = null;
+  var genDefaultMessages = [
+    '你好呀~',
+    '今天天气真好!',
+    '有什么想问的吗?',
+    '欢迎来到这里~',
+    '我是你的看板娘哦~'
+  ];
+
+  function showGenDialog(text, duration) {
+    var dialog = document.getElementById('gen-dialog');
+    var content = document.getElementById('gen-dialog-content');
+    if (!dialog || !content) return;
+
+    if (genDialogTimeout) {
+      clearTimeout(genDialogTimeout);
+      genDialogTimeout = null;
+    }
+
+    content.textContent = text;
+    dialog.classList.add('show');
+
+    if (duration && duration > 0) {
+      genDialogTimeout = setTimeout(function () {
+        hideGenDialog();
+      }, duration);
+    }
+  }
+
+  function hideGenDialog() {
+    var dialog = document.getElementById('gen-dialog');
+    if (dialog) {
+      dialog.classList.remove('show');
+    }
+    if (genDialogTimeout) {
+      clearTimeout(genDialogTimeout);
+      genDialogTimeout = null;
+    }
+  }
+
+  function showGenRandomMessage() {
+    var msg = genDefaultMessages[Math.floor(Math.random() * genDefaultMessages.length)];
+    showGenDialog(msg, 4000);
+  }
 
   function loadGenPreview() {
     releaseMainPreview();
@@ -779,6 +823,7 @@ var App = (function () {
     canvas.style.display = '';
     if (typeof loadlive2d === 'function') {
       loadlive2d('gen-preview-canvas', genState.apiBase + '/model/' + encodePath(genState.modelName) + '/index.json');
+      setTimeout(showGenRandomMessage, 500);
     }
   }
 
@@ -815,10 +860,12 @@ var App = (function () {
       var sc = Math.min(cw / origW, ch / origH);
       m.scale.set(sc);
       genPixiApp.stage.addChild(m);
+      showGenRandomMessage();
     }).catch(function () {});
   }
 
   function destroyGenPixi() {
+    hideGenDialog();
     if (genPixiApp) {
       genPixiApp.destroy(true);
       genPixiApp = null;

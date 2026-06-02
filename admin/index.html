@@ -103,6 +103,10 @@
             </button>
         </div>
         <div class="preview-canvas-wrap" id="preview-canvas-wrap">
+            <div class="live2d-dialog" id="live2d-dialog">
+                <div class="dialog-content" id="dialog-content"></div>
+                <button class="dialog-close" onclick="Live2DPreview.hideDialog()">×</button>
+            </div>
             <canvas id="live2d-canvas" width="320" height="400"></canvas>
         </div>
         <div class="preview-controls">
@@ -205,6 +209,9 @@
                         <div class="gen-mock-line"></div>
                     </div>
                     <div class="gen-mock-model" id="gen-mock-model">
+                        <div class="gen-dialog" id="gen-dialog">
+                            <div class="gen-dialog-content" id="gen-dialog-content"></div>
+                        </div>
                         <div class="gen-mock-model-wrap" id="gen-preview-wrap"></div>
                     </div>
                 </div>
