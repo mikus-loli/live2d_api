@@ -531,6 +531,34 @@ var App = (function () {
   var genPixiApp = null;
   var genCubism2Loaded = false;
 
+  function computeModelDimensions(config) {
+    var layout = config.layout || {};
+    var cx = layout.center_x || 0;
+    var cy = layout.center_y || 0;
+    var lw = layout.width || 2;
+    var modelBottom;
+
+    var hitAreas = config.hit_areas_custom || config.hit_areas || {};
+    var allYMin = [];
+    for (var key in hitAreas) {
+      if (hitAreas[key] && Array.isArray(hitAreas[key]) && typeof hitAreas[key][1] === 'number') {
+        allYMin.push(hitAreas[key][1]);
+      }
+    }
+    if (allYMin.length > 0) {
+      modelBottom = cy + Math.min.apply(null, allYMin);
+    } else {
+      modelBottom = cy - lw / 2;
+    }
+
+    var optimalRatio = Math.abs(modelBottom);
+    optimalRatio = Math.max(0.4, Math.min(optimalRatio, 2.0));
+    var defaultWidth = 280;
+    var defaultHeight = Math.round(defaultWidth * optimalRatio);
+
+    return { width: defaultWidth, height: defaultHeight };
+  }
+
   function generateCode(modelName) {
     currentCodeModel = modelName;
     document.getElementById('generate-model-name').textContent = '模型: ' + modelName;
@@ -565,20 +593,44 @@ var App = (function () {
     var heightEl = document.getElementById('gen-height');
     if (offsetXEl) offsetXEl.value = 0;
     if (offsetYEl) offsetYEl.value = 0;
-    if (widthEl) widthEl.value = 300;
-    if (heightEl) heightEl.value = 400;
 
-    var posBtns = document.querySelectorAll('.gen-btn[data-pos]');
-    for (var i = 0; i < posBtns.length; i++) {
-      posBtns[i].classList.toggle('active', posBtns[i].getAttribute('data-pos') === 'right');
+    if (!genState.isCubism4) {
+      Live2DAdminAPI.getModelDetail(modelName).then(function (res) {
+        if (res.data && res.data.config && res.data.config.layout) {
+          var dims = computeModelDimensions(res.data.config);
+          genState.width = dims.width;
+          genState.height = dims.height;
+          if (widthEl) widthEl.value = dims.width;
+          if (heightEl) heightEl.value = dims.height;
+        } else {
+          if (widthEl) widthEl.value = genState.width;
+          if (heightEl) heightEl.value = genState.height;
+        }
+        doShowGeneratedCode();
+      }).catch(function () {
+        if (widthEl) widthEl.value = genState.width;
+        if (heightEl) heightEl.value = genState.height;
+        doShowGeneratedCode();
+      });
+    } else {
+      if (widthEl) widthEl.value = genState.width;
+      if (heightEl) heightEl.value = genState.height;
+      doShowGeneratedCode();
     }
 
-    var scaleBtns = document.querySelectorAll('.gen-btn[data-scale]');
-    for (var i = 0; i < scaleBtns.length; i++) {
-      scaleBtns[i].classList.toggle('active', parseFloat(scaleBtns[i].getAttribute('data-scale')) === 1);
-    }
+    function doShowGeneratedCode() {
+      var posBtns = document.querySelectorAll('.gen-btn[data-pos]');
+      for (var i = 0; i < posBtns.length; i++) {
+        posBtns[i].classList.toggle('active', posBtns[i].getAttribute('data-pos') === 'right');
+      }
 
-    showGeneratedCode();
+      var scaleBtns = document.querySelectorAll('.gen-btn[data-scale]');
+      for (var j = 0; j < scaleBtns.length; j++) {
+        scaleBtns[j].classList.toggle('active', parseFloat(scaleBtns[j].getAttribute('data-scale')) === 1);
+      }
+
+      showGeneratedCode();
+    }
   }
 
   function showGeneratedCode() {
@@ -909,33 +961,60 @@ var App = (function () {
 
   function buildEmbedCSS(s) {
     var pos = s.position === 'left' ? 'left' : 'right';
-    var css = '#live2d{position:fixed;' + pos + ':' + s.offsetX + 'px;bottom:' + s.offsetY + 'px;z-index:99999;pointer-events:none}';
+    var css = '#live2d{position:fixed;' + pos + ':' + s.offsetX + 'px;bottom:' + s.offsetY + 'px;z-index:99999;pointer-events:auto;opacity:0;transition:opacity .4s ease}#live2d.show{opacity:1}#live2d-dialog{pointer-events:none}';
     return '<style>' + css + '</style>\n';
   }
 
   function getCodeTemplate2(modelName, apiBase, s) {
     var w = Math.round(s.width * (s.scale || 1));
     var h = Math.round(s.height * (s.scale || 1));
+    var pos = s.position === 'left' ? 'left' : 'right';
+    var dialogCSS = '#live2d-dialog{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(' + s.offsetY + 'px + ' + (h + 20) + 'px);background:rgba(255,255,255,0.95);border-radius:12px;padding:12px 16px;max-width:280px;min-width:120px;box-shadow:0 4px 20px rgba(0,0,0,0.15);z-index:99998;display:none;animation:dialogFadeIn 0.3s ease}#live2d-dialog.show{display:block}#live2d-dialog::after{content:"";position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid rgba(255,255,255,0.95)}#dialog-content{font-size:14px;color:#333;text-align:center;line-height:1.4}@keyframes dialogFadeIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
     return buildEmbedCSS(s) +
+      '<style>' + dialogCSS + '</style>\n' +
+      '<div id="live2d-dialog"><div id="dialog-content"></div></div>\n' +
       '<canvas id="live2d" width="' + w + '" height="' + h + '"></canvas>\n' +
       '<script>\n' +
-      '(function(){var s=document.createElement("script");s.src="' + apiBase + '/live2d.min.js";s.onload=function(){loadlive2d("live2d","' + apiBase + '/model/' + encodePath(modelName) + '/index.json")};document.head.appendChild(s)})();\n' +
+      '(function(){\n' +
+      'var pos="' + pos + '",ox=' + s.offsetX + ',w=' + w + ',h=' + h + ';\n' +
+      'var msgs=["你好呀~","今天天气真好!","有什么想问的吗?","欢迎来到这里~","我是你的看板娘哦~"];\n' +
+      'var dialogTimer=null;\n' +
+      'function updateDialogPos(){var el=document.getElementById("live2d-dialog");if(!el)return;var dl;if(pos==="left"){dl=ox+Math.round(w/2)}else{dl=window.innerWidth-ox-Math.round(w/2)}el.style.left=dl+"px"}\n' +
+      'function showDialog(t,d){var el=document.getElementById("live2d-dialog"),c=document.getElementById("dialog-content");if(!el||!c)return;if(dialogTimer){clearTimeout(dialogTimer);dialogTimer=null}c.textContent=t;el.classList.add("show");if(d&&d>0){dialogTimer=setTimeout(function(){hideDialog()},d)}}\n' +
+      'function hideDialog(){var el=document.getElementById("live2d-dialog");if(el)el.classList.remove("show");if(dialogTimer){clearTimeout(dialogTimer);dialogTimer=null}}\n' +
+      'function showRandomMsg(){var m=msgs[Math.floor(Math.random()*msgs.length)];showDialog(m,4000)}\n' +
+      'updateDialogPos();window.addEventListener("resize",updateDialogPos);\n' +
+      'var cv=document.getElementById("live2d");cv.addEventListener("click",showRandomMsg);\n' +
+      'var s=document.createElement("script");s.src="' + apiBase + '/live2d.min.js";s.onload=function(){loadlive2d("live2d","' + apiBase + '/model/' + encodePath(modelName) + '/index.json");setTimeout(function(){cv.classList.add("show");showRandomMsg()},800)};document.head.appendChild(s)\n' +
+      '})();\n' +
       '<\/script>';
   }
 
   function getCodeTemplate4(modelName, modelLast, apiBase, s) {
     var w = Math.round(s.width * (s.scale || 1));
     var h = Math.round(s.height * (s.scale || 1));
+    var pos = s.position === 'left' ? 'left' : 'right';
+    var dialogCSS = '#live2d-dialog{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(' + s.offsetY + 'px + ' + (h + 20) + 'px);background:rgba(255,255,255,0.95);border-radius:12px;padding:12px 16px;max-width:280px;min-width:120px;box-shadow:0 4px 20px rgba(0,0,0,0.15);z-index:99998;display:none;animation:dialogFadeIn 0.3s ease}#live2d-dialog.show{display:block}#live2d-dialog::after{content:"";position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid rgba(255,255,255,0.95)}#dialog-content{font-size:14px;color:#333;text-align:center;line-height:1.4}@keyframes dialogFadeIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
     return buildEmbedCSS(s) +
+      '<style>' + dialogCSS + '</style>\n' +
+      '<div id="live2d-dialog"><div id="dialog-content"></div></div>\n' +
       '<canvas id="live2d" width="' + w + '" height="' + h + '"></canvas>\n' +
       '<script>\n' +
       '(function(){\n' +
-      'var b="' + apiBase + '";\n' +
+      'var b="' + apiBase + '",w=' + w + ',h=' + h + ',pos="' + pos + '",ox=' + s.offsetX + ',oy=' + s.offsetY + ';\n' +
+      'var msgs=["你好呀~","今天天气真好!","有什么想问的吗?","欢迎来到这里~","我是你的看板娘哦~"];\n' +
+      'var dialogTimer=null;\n' +
+      'function updateDialogPos(){var el=document.getElementById("live2d-dialog");if(!el)return;var dl;if(pos==="left"){dl=ox+Math.round(w/2)}else{dl=window.innerWidth-ox-Math.round(w/2)}el.style.left=dl+"px"}\n' +
+      'function showDialog(t,d){var el=document.getElementById("live2d-dialog"),c=document.getElementById("dialog-content");if(!el||!c)return;if(dialogTimer){clearTimeout(dialogTimer);dialogTimer=null}c.textContent=t;el.classList.add("show");if(d&&d>0){dialogTimer=setTimeout(function(){hideDialog()},d)}}\n' +
+      'function hideDialog(){var el=document.getElementById("live2d-dialog");if(el)el.classList.remove("show");if(dialogTimer){clearTimeout(dialogTimer);dialogTimer=null}}\n' +
+      'function showRandomMsg(){var m=msgs[Math.floor(Math.random()*msgs.length)];showDialog(m,4000)}\n' +
+      'updateDialogPos();window.addEventListener("resize",updateDialogPos);\n' +
       'function ls(u,c){var d=document.querySelector(\'script[src="\'+u+\'"]\');if(d){if(c)c();return}var s=document.createElement("script");s.src=u;s.onload=c;document.head.appendChild(s)}\n' +
       'ls(b+"/live2dcubismcore.min.js",function(){\n' +
       '  ls(b+"/pixi.min.js",function(){\n' +
       '    ls(b+"/cubism4.min.js",function(){\n' +
       '      var cv=document.getElementById("live2d");\n' +
+      '      cv.addEventListener("click",showRandomMsg);\n' +
       '      var app=new PIXI.Application({view:cv,width:' + w + ',height:' + h + ',backgroundAlpha:0,autoDensity:true,resolution:window.devicePixelRatio||1});\n' +
       '      PIXI.live2d.Live2DModel.from(b+"/model/' + encodePath(modelName) + '/' + encodeURIComponent(modelLast) + '.model3.json").then(function(m){\n' +
       '        m.anchor.set(0.5,0.5);m.x=' + Math.round(w / 2) + ';m.y=' + Math.round(h / 2) + ';\n' +
@@ -944,6 +1023,7 @@ var App = (function () {
       '        app.stage.addChild(m);\n' +
       '        cv.addEventListener("pointermove",function(e){var r=cv.getBoundingClientRect();m.focus(e.clientX-r.left,e.clientY-r.top)});\n' +
       '        cv.addEventListener("pointerleave",function(){m.focus(0,0)});\n' +
+      '        showRandomMsg();\n' +
       '      });\n' +
       '    });\n' +
       '  });\n' +
