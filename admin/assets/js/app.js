@@ -1237,28 +1237,14 @@ var App = (function () {
       });
   }
 
-  var sseRetryTimer = null;
+  var pollTimer = null;
 
   function initRealtime() {
-    var es = new EventSource('api/events');
-    es.onmessage = function (e) {
-      try {
-        var data = JSON.parse(e.data);
-        if (data.type === 'models_updated') {
-          loadModels();
-          loadGroups();
-        }
-      } catch (err) {}
-    };
-    es.onerror = function () {
-      es.close();
-      if (!sseRetryTimer) {
-        sseRetryTimer = setInterval(function () {
-          loadModels();
-          loadGroups();
-        }, 30000);
-      }
-    };
+    // 直接使用轮询方式，避免 SSE 在代理服务器下超时
+    pollTimer = setInterval(function () {
+      loadModels();
+      loadGroups();
+    }, 30000);
   }
 
   function doRefresh() {
