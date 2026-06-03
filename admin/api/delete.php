@@ -70,5 +70,5 @@ try {
 
     json_response(true, $result, 'Model removed from list' . ($deletedFiles ? ' and files deleted' : ''));
 } catch (Exception $e) {
-    json_response(false, null, $e->getMessage());
+    json_response(false, null, '删除失败');
 }

@@ -3,6 +3,13 @@ require '../tools/modelList.php';
 require '../tools/modelTextures.php';
 require '../tools/jsonCompatible.php';
 
+function validate_model_name($name) {
+    if (empty($name)) return false;
+    if (strpos($name, '..') !== false) return false;
+    if ($name[0] === '/') return false;
+    return preg_match('/^[a-zA-Z0-9_\-\/\x{4e00}-\x{9fff}]+$/u', $name) === 1;
+}
+
 $modelList = new modelList();
 $modelTextures = new modelTextures();
 $jsonCompatible = new jsonCompatible();
@@ -64,6 +71,7 @@ function load_config($dir) {
 
 if (isset($_GET['name'])) {
     $modelName = $_GET['name'];
+    if (!validate_model_name($modelName)) exit('{"error":"invalid model name"}');
     $modelTexturesId = isset($_GET['textures_id']) ? (int)$_GET['textures_id'] : 0;
 
     $dir = '../model/' . $modelName;
@@ -76,6 +84,7 @@ if (isset($_GET['name'])) {
     }
 } elseif (isset($_GET['id'])) {
     $id = explode('-', $_GET['id']);
+    if (count($id) > 2) exit('{"error":"invalid id format"}');
     $modelId = (int)$id[0];
     $modelTexturesId = isset($id[1]) ? (int)$id[1] : 0;
 
@@ -114,5 +123,5 @@ if (isset($json['expressions']))
     foreach ($json['expressions'] as $k => $v) foreach($v as $k2 => $expression)
         if ($k2 == 'file') $json['expressions'][$k][$k2] = '../model/' . $modelName . '/' . $expression;
 
-header("Content-type: application/json");
+header("Content-type: application/json; charset=utf-8");
 echo $jsonCompatible->json_encode($json);

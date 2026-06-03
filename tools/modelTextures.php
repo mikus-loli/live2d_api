@@ -1,4 +1,12 @@
-<?php class modelTextures {
+<?php
+function validate_model_name($name) {
+    if (empty($name)) return false;
+    if (strpos($name, '..') !== false) return false;
+    if ($name[0] === '/') return false;
+    return preg_match('/^[a-zA-Z0-9_\-\/\x{4e00}-\x{9fff}]+$/u', $name) === 1;
+}
+
+class modelTextures {
     
     /* 获取材质名称 */
     function get_name($modelName, $id) {
@@ -8,23 +16,25 @@
     
     /* 获取列表缓存 */
     function get_list($modelName) {
+        if (!validate_model_name($modelName)) return false;
         if (file_exists('../model/'.$modelName.'/textures.cache')) {
             $textures = json_decode(file_get_contents('../model/'.$modelName.'/textures.cache'), true);
         } else {
             $textures = self::get_textures($modelName);
-            if (!empty($textures)) file_put_contents('../model/'.$modelName.'/textures.cache', str_replace('\/', '/', json_encode($textures)));
+            if (!empty($textures)) file_put_contents('../model/'.$modelName.'/textures.cache', json_encode($textures, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
         } return isset($textures) ? array('textures' => $textures) : false;
     }
     
     /* 获取材质列表 */
     function get_textures($modelName) {
+        if (!validate_model_name($modelName)) return null;
         if (file_exists('../model/'.$modelName.'/textures_order.json')) {                   // 读取材质组合规则
             $tmp = array(); foreach (json_decode(file_get_contents('../model/'.$modelName.'/textures_order.json'), 1) as $k => $v) {
                 $tmp2 = array(); foreach ($v as $textures_dir) {
                     $tmp3 = array(); foreach (glob('../model/'.$modelName.'/'.$textures_dir.'/*') as $n => $m)
                         $tmp3['merge'.$n] = str_replace('../model/'.$modelName.'/', '', $m);
                 $tmp2 = array_merge_recursive($tmp2, $tmp3);   }
-                foreach ($tmp2 as $v4) $tmp4[$k][] = str_replace('\/', '/', json_encode($v4));
+                foreach ($tmp2 as $v4) $tmp4[$k][] = json_encode($v4, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
                 $tmp = self::array_exhaustive($tmp, $tmp4[$k]);                                                                    }
             foreach ($tmp as $v) $textures[] = json_decode('['.$v.']', 1); return $textures;
         } else {

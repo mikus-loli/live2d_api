@@ -10,6 +10,7 @@ try {
 
     $oldName = isset($input['old_name']) ? trim($input['old_name']) : '';
     $newName = isset($input['new_name']) ? trim($input['new_name']) : '';
+    $newName = preg_replace('/[^a-zA-Z0-9_\-\/\x{4e00}-\x{9fff}]/u', '', $newName);
     $message = isset($input['message']) ? $input['message'] : null;
 
     if ($oldName === '') {
@@ -77,5 +78,5 @@ try {
     $resultName = $newName !== '' && $newName !== $oldName ? $newName : $oldName;
     json_response(true, array('name' => $resultName), 'Model updated successfully');
 } catch (Exception $e) {
-    json_response(false, null, $e->getMessage());
+    json_response(false, null, '更新失败');
 }

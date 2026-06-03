@@ -199,17 +199,22 @@ var App = (function () {
 
   function animateCards(container) {
     var cards = container.querySelectorAll('.model-card');
+    if (cards.length === 0) return;
+    // 使用 CSS 动画类代替 JS 逐个设置样式
     for (var i = 0; i < cards.length; i++) {
-      (function (card, idx) {
-        card.style.opacity = '0';
-        card.style.transform = 'translateY(20px)';
-        setTimeout(function () {
-          card.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
-          card.style.opacity = '1';
-          card.style.transform = 'translateY(0)';
-        }, idx * 50);
-      })(cards[i], i);
+      cards[i].style.opacity = '0';
+      cards[i].style.transform = 'translateY(20px)';
+      cards[i].style.transition = 'none';
     }
+    // 批量触发重排后设置动画
+    container.offsetHeight; // 强制一次重排
+    requestAnimationFrame(function () {
+      for (var i = 0; i < cards.length; i++) {
+        cards[i].style.transition = 'opacity 0.3s ease ' + (i * 50) + 'ms, transform 0.3s ease ' + (i * 50) + 'ms';
+        cards[i].style.opacity = '1';
+        cards[i].style.transform = 'translateY(0)';
+      }
+    });
   }
 
   function filterGroup(group) {
@@ -621,8 +626,6 @@ var App = (function () {
     if (skinGroupEl) skinGroupEl.style.display = genState.isCubism4 ? 'none' : '';
 
     var pendingTasks = 2;
-    var detailDone = false;
-    var skinsDone = false;
 
     function checkAllDone() {
       pendingTasks--;
@@ -1300,7 +1303,7 @@ var App = (function () {
     pollTimer = setInterval(function () {
       loadModels();
       loadGroups();
-    }, 30000);
+    }, 60000);
   }
 
   function doRefresh() {

@@ -47,5 +47,5 @@ try {
 
     json_response(true, array('name' => $name, 'message' => $message), 'Model added successfully');
 } catch (Exception $e) {
-    json_response(false, null, $e->getMessage());
+    json_response(false, null, '创建失败');
 }

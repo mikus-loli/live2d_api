@@ -1,4 +1,5 @@
 var http = require('http');
+var zlib = require('zlib');
 var fs = require('fs');
 var path = require('path');
 var crypto = require('crypto');
@@ -18,6 +19,9 @@ var rateLimitStore = {};
 var usersCache = null;
 var usersCacheTime = 0;
 var wsClients = [];
+var modelListCache = null;
+var modelListCacheTime = 0;
+var MODEL_LIST_CACHE_TTL = 5000; // 5秒缓存
 
 var MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -31,12 +35,18 @@ var MIME = {
   '.ico': 'image/x-icon',
 };
 
+function isPathSafe(name) {
+  if (!name || typeof name !== 'string') return false;
+  if (name.indexOf('..') >= 0) return false;
+  if (name.charAt(0) === '/') return false;
+  return /^[a-zA-Z0-9_\-\/\u4e00-\u9fff\.]+$/.test(name);
+}
+
 function jsonRes(res, data, statusCode) {
   var sc = statusCode || 200;
   res.writeHead(sc, {
     'Content-Type': 'application/json; charset=utf-8',
     'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Credentials': 'true',
   });
   res.end(JSON.stringify(data));
 }
@@ -212,7 +222,10 @@ function generateToken() {
 
 function getClientIP(req) {
   var forwarded = req.headers['x-forwarded-for'];
-  if (forwarded) return forwarded.split(',')[0].trim();
+  if (forwarded) {
+    var ips = forwarded.split(',');
+    return ips[ips.length - 1].trim();
+  }
   return req.socket.remoteAddress || '127.0.0.1';
 }
 
@@ -248,7 +261,7 @@ function createSession(res, user) {
     created: Date.now(),
   };
   res.setHeader('Set-Cookie',
-    'admin_token=' + token + '; Path=/admin/; HttpOnly; SameSite=Lax; Max-Age=' + SESSION_LIFETIME);
+    'admin_token=' + token + '; Path=/admin/; HttpOnly; SameSite=Strict; Max-Age=' + SESSION_LIFETIME);
   return token;
 }
 
@@ -256,7 +269,7 @@ function destroySession(req, res) {
   var cookies = parseCookies(req);
   var token = cookies['admin_token'];
   if (token && sessions[token]) delete sessions[token];
-  res.setHeader('Set-Cookie', 'admin_token=; Path=/admin/; HttpOnly; SameSite=Lax; Max-Age=0');
+  res.setHeader('Set-Cookie', 'admin_token=; Path=/admin/; HttpOnly; SameSite=Strict; Max-Age=0');
 }
 
 function requireAuth(req, res) {
@@ -409,6 +422,11 @@ function handleUpdateProfile(req, res) {
 }
 
 function handleTextureConfig(req, res, modelName, textureId) {
+  if (!isPathSafe(modelName)) {
+    res.writeHead(400, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
+    res.end(JSON.stringify({ error: 'Invalid model name' }));
+    return;
+  }
   var dir = path.join(MODEL_DIR, modelName);
   if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
     res.writeHead(404, { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' });
@@ -552,11 +570,37 @@ function broadcastWS(data) {
   }
 }
 
+function invalidateModelListCache() {
+  modelListCache = null;
+  modelListCacheTime = 0;
+}
+
+// 定期清理过期 session 和速率限制
+setInterval(function () {
+  var now = Date.now();
+  Object.keys(sessions).forEach(function (token) {
+    if (now - sessions[token].created > SESSION_LIFETIME * 1000) {
+      delete sessions[token];
+    }
+  });
+  Object.keys(rateLimitStore).forEach(function (action) {
+    Object.keys(rateLimitStore[action]).forEach(function (ip) {
+      if (now - rateLimitStore[action][ip].firstAttempt > 60000) {
+        delete rateLimitStore[action][ip];
+      }
+    });
+    if (Object.keys(rateLimitStore[action]).length === 0) {
+      delete rateLimitStore[action];
+    }
+  });
+}, 300000);
+
 var modelListWatcher;
 var watchTarget = MODEL_LIST_FILE;
 try { watchTarget = fs.realpathSync(MODEL_LIST_FILE); } catch (e) {}
 try {
   modelListWatcher = fs.watch(watchTarget, function () {
+    invalidateModelListCache();
     broadcastWS({ type: 'models_updated' });
   });
 } catch (e) {}
@@ -647,6 +691,8 @@ function extractZipInMemory(zipPath, destDir) {
     if (!validateExtension(entryName)) return;
 
     var destPath = path.join(destDir, entryName);
+    var resolvedDest = path.resolve(destPath);
+    if (!resolvedDest.startsWith(path.resolve(destDir) + path.sep) && resolvedDest !== path.resolve(destDir)) return;
     var destSubDir = path.dirname(destPath);
     if (!fs.existsSync(destSubDir)) {
       fs.mkdirSync(destSubDir, { recursive: true });
@@ -700,6 +746,11 @@ function extractZipManual(zipPath, destDir) {
     }
 
     var destPath = path.join(destDir, fname);
+    var resolvedDest = path.resolve(destPath);
+    if (!resolvedDest.startsWith(path.resolve(destDir) + path.sep) && resolvedDest !== path.resolve(destDir)) {
+      offset += 30 + fnLen + extraLen + compSize;
+      continue;
+    }
     var destSubDir = path.dirname(destPath);
     if (!fs.existsSync(destSubDir)) {
       fs.mkdirSync(destSubDir, { recursive: true });
@@ -853,7 +904,15 @@ function handleAPI(req, res, urlPath) {
   if (endpoint === 'update_profile') return handleUpdateProfile(req, res);
 
   if (endpoint === 'list') {
-    var list = JSON.parse(fs.readFileSync(MODEL_LIST_FILE, 'utf-8'));
+    var now = Date.now();
+    var list;
+    if (modelListCache && (now - modelListCacheTime) < MODEL_LIST_CACHE_TTL) {
+      list = modelListCache;
+    } else {
+      list = JSON.parse(fs.readFileSync(MODEL_LIST_FILE, 'utf-8'));
+      modelListCache = list;
+      modelListCacheTime = now;
+    }
     var models = list.models;
     var messages = list.messages;
     var result = [];
@@ -919,6 +978,7 @@ function handleAPI(req, res, urlPath) {
     var params = new URL(req.url, 'http://localhost').searchParams;
     var modelName = params.get('model_name');
     if (!modelName) return jsonRes(res, { success: false, data: null, message: 'Missing model_name' });
+    if (!isPathSafe(modelName)) return jsonRes(res, { success: false, data: null, message: 'Invalid model name' });
     var dir = path.join(MODEL_DIR, modelName);
     if (!fs.existsSync(dir)) return jsonRes(res, { success: false, data: null, message: 'Model not found' });
     var files = scanDir(dir);
@@ -943,6 +1003,7 @@ function handleAPI(req, res, urlPath) {
     var params = new URL(req.url, 'http://localhost').searchParams;
     var modelName = params.get('model_name');
     if (!modelName) return jsonRes(res, { success: false, data: null, message: 'Missing model_name' });
+    if (!isPathSafe(modelName)) return jsonRes(res, { success: false, data: null, message: 'Invalid model name' });
     var dir = path.join(MODEL_DIR, modelName);
     if (!fs.existsSync(dir)) return jsonRes(res, { success: false, data: null, message: 'Model not found' });
 
@@ -994,8 +1055,9 @@ function handleAPI(req, res, urlPath) {
         list.models.push(name);
         list.messages.push(message);
         fs.writeFileSync(MODEL_LIST_FILE, JSON.stringify(list, null, 4));
+        invalidateModelListCache();
         jsonRes(res, { success: true, data: { name: name, message: message }, message: 'Created' });
-      } catch (e) { jsonRes(res, { success: false, data: null, message: e.message }); }
+      } catch (e) { jsonRes(res, { success: false, data: null, message: '创建失败' }); }
     });
     return;
   }
@@ -1036,8 +1098,9 @@ function handleAPI(req, res, urlPath) {
         }
         if (message !== null && message !== undefined) list.messages[i] = message;
         fs.writeFileSync(MODEL_LIST_FILE, JSON.stringify(list, null, 4));
+        invalidateModelListCache();
         jsonRes(res, { success: true, data: null, message: 'Updated' });
-      } catch (e) { jsonRes(res, { success: false, data: null, message: e.message }); }
+      } catch (e) { jsonRes(res, { success: false, data: null, message: '更新失败' }); }
     });
     return;
   }
@@ -1076,8 +1139,9 @@ function handleAPI(req, res, urlPath) {
         list.models.splice(foundIdx, 1);
         list.messages.splice(foundIdx, 1);
         fs.writeFileSync(MODEL_LIST_FILE, JSON.stringify(list, null, 4));
+        invalidateModelListCache();
         jsonRes(res, { success: true, data: null, message: 'Deleted' });
-      } catch (e) { jsonRes(res, { success: false, data: null, message: e.message }); }
+      } catch (e) { jsonRes(res, { success: false, data: null, message: '删除失败' }); }
     });
     return;
   }
@@ -1121,6 +1185,9 @@ function handleAPI(req, res, urlPath) {
 }
 
 var server = http.createServer(function (req, res) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+
   var rawPath = new URL(req.url, 'http://localhost').pathname;
   var urlPath;
   try { urlPath = decodeURIComponent(rawPath); } catch (e) { urlPath = rawPath; }
@@ -1220,8 +1287,30 @@ var server = http.createServer(function (req, res) {
     headers['Access-Control-Allow-Origin'] = '*';
     headers['Cache-Control'] = 'public, max-age=86400';
   }
-  res.writeHead(200, headers);
-  fs.createReadStream(filePath).pipe(res);
+
+  var stat = fs.statSync(filePath);
+  var etag = '"' + stat.size.toString(16) + '-' + stat.mtimeMs.toString(16) + '"';
+  headers['ETag'] = etag;
+  if (req.headers['if-none-match'] === etag) {
+    res.writeHead(304);
+    res.end();
+    return;
+  }
+
+  headers['Content-Length'] = stat.size;
+
+  // 对文本类型启用 gzip 压缩
+  var compressible = ext === '.html' || ext === '.css' || ext === '.js' || ext === '.json';
+  var acceptEncoding = req.headers['accept-encoding'] || '';
+  if (compressible && acceptEncoding.indexOf('gzip') >= 0 && stat.size > 512) {
+    headers['Content-Encoding'] = 'gzip';
+    delete headers['Content-Length'];
+    res.writeHead(200, headers);
+    fs.createReadStream(filePath).pipe(zlib.createGzip()).pipe(res);
+  } else {
+    res.writeHead(200, headers);
+    fs.createReadStream(filePath).pipe(res);
+  }
 });
 
 server.listen(8080, function () {

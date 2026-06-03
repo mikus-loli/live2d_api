@@ -1,6 +1,9 @@
 services:
   live2d-api:
-    build: .
+    build:
+      context: .
+      args:
+        - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
     image: ghcr.io/${GITHUB_REPOSITORY:-user}/live2d_api:latest
     container_name: live2d-api
     restart: unless-stopped

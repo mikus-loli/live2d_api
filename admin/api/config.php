@@ -142,7 +142,8 @@ function clear_rate_limit($ip, $action) {
 
 function require_auth() {
     if (session_status() === PHP_SESSION_NONE) {
-        session_set_cookie_params(SESSION_LIFETIME, '/admin/', '', false, true);
+        $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+        session_set_cookie_params(SESSION_LIFETIME, '/admin/', '', $secure, true);
         session_start();
     }
 
@@ -154,12 +155,10 @@ function require_auth() {
 }
 
 function get_client_ip() {
+    // 仅在受信任代理后使用 X-Forwarded-For，取最后一个
     if (!empty($_SERVER['HTTP_X_FORWARDED_FOR'])) {
         $ips = explode(',', $_SERVER['HTTP_X_FORWARDED_FOR']);
-        return trim($ips[0]);
-    }
-    if (!empty($_SERVER['HTTP_CLIENT_IP'])) {
-        return $_SERVER['HTTP_CLIENT_IP'];
+        return trim($ips[count($ips) - 1]);
     }
     return $_SERVER['REMOTE_ADDR'];
 }

@@ -137,6 +137,10 @@ try {
             if (!validate_extension($zf['name'])) continue;
             $srcPath = $srcDir . '/' . $zf['name'];
             $destPath = $modelDir . '/' . $zf['name'];
+            // 防止 Zip Slip 路径遍历
+            $resolvedDest = realpath(dirname($destPath)) . '/' . basename($zf['name']);
+            $resolvedBase = realpath($modelDir);
+            if ($resolvedBase === false || strpos($resolvedDest, $resolvedBase) !== 0) continue;
             $destSubDir = dirname($destPath);
             if (!is_dir($destSubDir)) {
                 mkdir($destSubDir, 0755, true);
