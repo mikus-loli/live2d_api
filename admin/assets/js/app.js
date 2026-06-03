@@ -7,6 +7,18 @@ var App = (function () {
   var currentDetailModel = null;
   var currentCodeModel = '';
 
+  // 移动设备检测
+  function isMobileDevice() {
+    var width = window.innerWidth || document.documentElement.clientWidth;
+    if (width <= 768) return true;
+    // 额外检测触摸设备
+    if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+      // 触摸设备但屏幕较大时，仍允许预览
+      return width <= 768;
+    }
+    return false;
+  }
+
   function init() {
     loadUserInfo();
     loadGroups();
@@ -224,6 +236,12 @@ var App = (function () {
   }
 
   function previewModel(nameOrId) {
+    // 移动设备禁用预览
+    if (isMobileDevice()) {
+      UI.toast('移动设备不支持 Live2D 预览，请在桌面端查看', 'info');
+      return;
+    }
+
     if (typeof nameOrId !== 'string') {
       return;
     }
@@ -544,6 +562,7 @@ var App = (function () {
     width: 300,
     height: 400,
     scale: 1,
+    hideOnMobile: true,
     messages: ['你好呀~', '今天天气真好!', '有什么想问的吗?', '欢迎来到这里~', '我是你的看板娘哦~'],
     skinId: 0,
     skins: [],
@@ -592,6 +611,7 @@ var App = (function () {
     genState.width = 300;
     genState.height = 400;
     genState.scale = 1;
+    genState.hideOnMobile = true;
     genState.messages = ['你好呀~', '今天天气真好!', '有什么想问的吗?', '欢迎来到这里~', '我是你的看板娘哦~'];
     genState.skinId = 0;
     genState.skins = [];
@@ -745,6 +765,16 @@ var App = (function () {
     updateGenCode();
   }
 
+  function setHideOnMobile(val) {
+    genState.hideOnMobile = val;
+    var btns = document.querySelectorAll('.gen-btn[data-mobile]');
+    for (var i = 0; i < btns.length; i++) {
+      var isHide = btns[i].getAttribute('data-mobile') === 'hide';
+      btns[i].classList.toggle('active', val ? isHide : !isHide);
+    }
+    updateGenCode();
+  }
+
   function setGenSkin(skinId) {
     genState.skinId = parseInt(skinId, 10) || 0;
     loadGenPreview();
@@ -845,6 +875,15 @@ var App = (function () {
   }
 
   function loadGenPreview() {
+    // 移动设备禁用预览
+    if (isMobileDevice()) {
+      var wrap = document.getElementById('gen-preview-wrap');
+      if (wrap) {
+        wrap.innerHTML = '<div class="gen-preview-mobile-msg"><p>移动设备不支持预览</p><p class="small">请在桌面端查看 Live2D 效果</p></div>';
+      }
+      return;
+    }
+
     releaseMainPreview();
 
     var wrap = document.getElementById('gen-preview-wrap');
@@ -1087,7 +1126,15 @@ var App = (function () {
   function buildEmbedCSS(s) {
     var pos = s.position === 'left' ? 'left' : 'right';
     var css = '#live2d{position:fixed;' + pos + ':' + s.offsetX + 'px;bottom:' + s.offsetY + 'px;z-index:99999;pointer-events:auto;opacity:0;transition:opacity .4s ease}#live2d.show{opacity:1}#live2d-dialog{pointer-events:none}';
+    if (s.hideOnMobile) {
+      css += '@media(max-width:768px){#live2d,#live2d-dialog{display:none!important}}';
+    }
     return '<style>' + css + '</style>\n';
+  }
+
+  function buildMobileCheckScript(s) {
+    if (!s.hideOnMobile) return '';
+    return '<script>function _l2dMobileCheck(){var e=document.getElementById("live2d"),d=document.getElementById("live2d-dialog");if(!e)return;var isMobile=screen.width<=768||/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);if(isMobile){e.style.display="none";if(d)d.style.display="none"}else{e.style.display="";if(d)d.style.display=""}}_l2dMobileCheck();window.addEventListener("resize",_l2dMobileCheck)<\/script>';
   }
 
   function getCodeTemplate2(modelName, apiBase, s) {
@@ -1145,7 +1192,8 @@ var App = (function () {
       'setInterval(function(){if(window.outerWidth-window.innerWidth>160||window.outerHeight-window.innerHeight>160){if(consoleMsg){showDialog(consoleMsg,4000);consoleMsg=null}}},1000);\n' +
       'var s=document.createElement("script");s.src="' + apiBase + '/live2d.min.js";s.onload=function(){loadlive2d("live2d","' + modelUrl + '");setTimeout(function(){cv.classList.add("show");var tm=getTimeMsg();if(tm)showDialog(tm,6000);else showDialog(welcomeMsg,6000)},800)};document.head.appendChild(s)\n' +
       '})();\n' +
-      '<\/script>';
+      '<\/script>' +
+      buildMobileCheckScript(s);
   }
 
   function getCodeTemplate4(modelName, modelLast, apiBase, s) {
@@ -1206,7 +1254,8 @@ var App = (function () {
       '  });\n' +
       '});\n' +
       '})();\n' +
-      '<\/script>';
+      '<\/script>' +
+      buildMobileCheckScript(s);
   }
 
   function loadUserInfo() {
@@ -1429,6 +1478,7 @@ var App = (function () {
     generateCode: generateCode,
     setGenPos: setGenPos,
     setGenScale: setGenScale,
+    setHideOnMobile: setHideOnMobile,
     updateGenCode: updateGenCode,
     updateGenMessages: updateGenMessages,
     setGenSkin: setGenSkin,

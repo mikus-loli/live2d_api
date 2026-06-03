@@ -254,6 +254,13 @@
                         <button class="gen-btn" data-scale="2" onclick="App.setGenScale(2)">2x</button>
                     </div>
                 </div>
+                <div class="gen-config-group">
+                    <label class="gen-config-label">移动端隐藏</label>
+                    <div class="gen-btn-group">
+                        <button class="gen-btn active" data-mobile="hide" onclick="App.setHideOnMobile(true)">隐藏</button>
+                        <button class="gen-btn" data-mobile="show" onclick="App.setHideOnMobile(false)">显示</button>
+                    </div>
+                </div>
                 <div class="gen-config-group" id="gen-skin-group">
                     <label class="gen-config-label">皮肤选择</label>
                     <select class="gen-config-select" id="gen-skin" onchange="App.setGenSkin(this.value)">
