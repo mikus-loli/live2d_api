@@ -3,6 +3,13 @@ set -e
 
 API_DIR="/app/admin/api"
 DEFAULTS="/app/defaults/api"
+MODEL_DIR="/app/model"
+
+# 修复 model 目录权限（volume 挂载后可能由 root 拥有）
+if [ -d "$MODEL_DIR" ]; then
+    echo "[entrypoint] 修复 model 目录权限..."
+    chown -R appuser:appuser "$MODEL_DIR"
+fi
 
 if [ ! -f "$API_DIR/users.json" ]; then
     echo "[entrypoint] 初始化 users.json ..."
