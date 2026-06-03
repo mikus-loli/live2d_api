@@ -17,7 +17,7 @@ var sessions = {};
 var rateLimitStore = {};
 var usersCache = null;
 var usersCacheTime = 0;
-var sseClients = [];
+var wsClients = [];
 
 var MIME = {
   '.html': 'text/html; charset=utf-8',
@@ -545,29 +545,10 @@ function generateTextureCombinations(dir, order) {
   return result;
 }
 
-function handleEvents(req, res) {
-  var user = requireAuth(req, res);
-  if (!user) return;
-
-  res.writeHead(200, {
-    'Content-Type': 'text/event-stream',
-    'Cache-Control': 'no-cache',
-    'Connection': 'keep-alive',
-  });
-  res.write('data: {"type":"connected"}\n\n');
-
-  sseClients.push(res);
-
-  req.on('close', function () {
-    var idx = sseClients.indexOf(res);
-    if (idx >= 0) sseClients.splice(idx, 1);
-  });
-}
-
-function broadcastSSE(data) {
+function broadcastWS(data) {
   var json = JSON.stringify(data);
-  for (var i = sseClients.length - 1; i >= 0; i--) {
-    try { sseClients[i].write('data: ' + json + '\n\n'); } catch (e) { sseClients.splice(i, 1); }
+  for (var i = wsClients.length - 1; i >= 0; i--) {
+    try { wsClients[i].send(json); } catch (e) { wsClients.splice(i, 1); }
   }
 }
 
@@ -576,7 +557,7 @@ var watchTarget = MODEL_LIST_FILE;
 try { watchTarget = fs.realpathSync(MODEL_LIST_FILE); } catch (e) {}
 try {
   modelListWatcher = fs.watch(watchTarget, function () {
-    broadcastSSE({ type: 'models_updated' });
+    broadcastWS({ type: 'models_updated' });
   });
 } catch (e) {}
 
@@ -870,7 +851,6 @@ function handleAPI(req, res, urlPath) {
   if (!requireAuth(req, res)) return;
 
   if (endpoint === 'update_profile') return handleUpdateProfile(req, res);
-  if (endpoint === 'events') return handleEvents(req, res);
 
   if (endpoint === 'list') {
     var list = JSON.parse(fs.readFileSync(MODEL_LIST_FILE, 'utf-8'));
@@ -1247,3 +1227,37 @@ var server = http.createServer(function (req, res) {
 server.listen(8080, function () {
   console.log('Dev server running at http://localhost:8080/admin/');
 });
+
+// WebSocket 服务
+try {
+  var WebSocketServer = require('ws').Server;
+  var wss = new WebSocketServer({ server: server, path: '/admin/ws' });
+
+  wss.on('connection', function (ws, req) {
+    // 通过 cookie 验证身份
+    var user = getSession(req);
+    if (!user) {
+      ws.close(4001, 'Unauthorized');
+      return;
+    }
+
+    ws._user = user;
+    wsClients.push(ws);
+
+    ws.send(JSON.stringify({ type: 'connected' }));
+
+    ws.on('close', function () {
+      var idx = wsClients.indexOf(ws);
+      if (idx >= 0) wsClients.splice(idx, 1);
+    });
+
+    ws.on('error', function () {
+      var idx = wsClients.indexOf(ws);
+      if (idx >= 0) wsClients.splice(idx, 1);
+    });
+  });
+
+  console.log('WebSocket server ready at ws://localhost:8080/admin/ws');
+} catch (e) {
+  console.log('WebSocket module not available, using polling fallback');
+}

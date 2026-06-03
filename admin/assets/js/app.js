@@ -1237,30 +1237,31 @@ var App = (function () {
       });
   }
 
-  var sseRetryTimer = null;
-  var sseRetryCount = 0;
-  var SSE_MAX_RETRIES = 2;
+  var pollTimer = null;
+  var ws = null;
+  var wsRetryCount = 0;
+  var WS_MAX_RETRIES = 5;
 
   function initRealtime() {
-    trySSE();
+    connectWS();
   }
 
-  function trySSE() {
-    if (sseRetryCount >= SSE_MAX_RETRIES) {
-      // SSE 多次失败，降级为轮询
+  function connectWS() {
+    var protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    var wsUrl = protocol + '//' + window.location.host + '/admin/ws';
+
+    try {
+      ws = new WebSocket(wsUrl);
+    } catch (e) {
       fallbackToPolling();
       return;
     }
 
-    var es = new EventSource('api/events');
-    var connected = false;
-
-    es.onopen = function () {
-      connected = true;
-      sseRetryCount = 0; // 连接成功，重置计数
+    ws.onopen = function () {
+      wsRetryCount = 0;
     };
 
-    es.onmessage = function (e) {
+    ws.onmessage = function (e) {
       try {
         var data = JSON.parse(e.data);
         if (data.type === 'models_updated') {
@@ -1270,27 +1271,33 @@ var App = (function () {
       } catch (err) {}
     };
 
-    es.onerror = function () {
-      es.close();
-      if (!connected) {
-        // 首次连接就失败，说明服务端/代理不支持 SSE
-        sseRetryCount++;
-        if (sseRetryCount >= SSE_MAX_RETRIES) {
-          fallbackToPolling();
-        } else {
-          // 短暂延迟后重试
-          setTimeout(trySSE, 3000);
-        }
-      } else {
-        // 曾经连通过，断线重连
-        setTimeout(trySSE, 5000);
+    ws.onclose = function (e) {
+      if (e.code === 4001) {
+        // 未授权，不重连
+        return;
       }
+      retryWS();
+    };
+
+    ws.onerror = function () {
+      // onclose 会随后触发
     };
   }
 
+  function retryWS() {
+    if (pollTimer) return; // 已降级为轮询
+    if (wsRetryCount >= WS_MAX_RETRIES) {
+      fallbackToPolling();
+      return;
+    }
+    wsRetryCount++;
+    var delay = Math.min(3000 * wsRetryCount, 15000);
+    setTimeout(connectWS, delay);
+  }
+
   function fallbackToPolling() {
-    if (sseRetryTimer) return;
-    sseRetryTimer = setInterval(function () {
+    if (pollTimer) return;
+    pollTimer = setInterval(function () {
       loadModels();
       loadGroups();
     }, 30000);

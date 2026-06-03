@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "adm-zip": "^0.5.17",
-    "bcryptjs": "^3.0.3"
+    "bcryptjs": "^3.0.3",
+    "ws": "^8.18.0"
   }
 }
