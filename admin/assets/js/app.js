@@ -1238,9 +1238,28 @@ var App = (function () {
   }
 
   var sseRetryTimer = null;
+  var sseRetryCount = 0;
+  var SSE_MAX_RETRIES = 2;
 
   function initRealtime() {
+    trySSE();
+  }
+
+  function trySSE() {
+    if (sseRetryCount >= SSE_MAX_RETRIES) {
+      // SSE 多次失败，降级为轮询
+      fallbackToPolling();
+      return;
+    }
+
     var es = new EventSource('api/events');
+    var connected = false;
+
+    es.onopen = function () {
+      connected = true;
+      sseRetryCount = 0; // 连接成功，重置计数
+    };
+
     es.onmessage = function (e) {
       try {
         var data = JSON.parse(e.data);
@@ -1250,15 +1269,31 @@ var App = (function () {
         }
       } catch (err) {}
     };
+
     es.onerror = function () {
       es.close();
-      if (!sseRetryTimer) {
-        sseRetryTimer = setInterval(function () {
-          loadModels();
-          loadGroups();
-        }, 30000);
+      if (!connected) {
+        // 首次连接就失败，说明服务端/代理不支持 SSE
+        sseRetryCount++;
+        if (sseRetryCount >= SSE_MAX_RETRIES) {
+          fallbackToPolling();
+        } else {
+          // 短暂延迟后重试
+          setTimeout(trySSE, 3000);
+        }
+      } else {
+        // 曾经连通过，断线重连
+        setTimeout(trySSE, 5000);
       }
     };
+  }
+
+  function fallbackToPolling() {
+    if (sseRetryTimer) return;
+    sseRetryTimer = setInterval(function () {
+      loadModels();
+      loadGroups();
+    }, 30000);
   }
 
   function doRefresh() {
