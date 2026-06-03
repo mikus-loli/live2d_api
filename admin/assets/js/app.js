@@ -371,7 +371,19 @@ var App = (function () {
   function handleFileSelect(file) {
     pendingUploadFile = file;
     var fileLabel = document.getElementById('upload-file-label');
+    var nameInput = document.getElementById('upload-model-name');
     if (fileLabel) fileLabel.textContent = file.name + ' (' + UI.formatSize(file.size) + ')';
+
+    // 自动从文件名获取模型名称
+    if (nameInput) {
+      var fileName = file.name;
+      // 移除扩展名
+      var extMatch = fileName.match(/\.(zip|moc|moc3|json|mtn|png|jpg|avif)$/i);
+      if (extMatch) {
+        fileName = fileName.slice(0, -extMatch[0].length);
+      }
+      nameInput.value = fileName;
+    }
   }
 
   function doCreate() {
@@ -482,8 +494,8 @@ var App = (function () {
   function doUpload() {
     var modelName = document.getElementById('upload-model-name').value.trim();
 
-    if (!modelName || modelName.indexOf('/') === -1) {
-      UI.toast('模型名称必须使用 分组/模型名 格式', 'error');
+    if (!modelName) {
+      UI.toast('请输入模型名称', 'error');
       return;
     }
 

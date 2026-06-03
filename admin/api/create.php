@@ -15,13 +15,10 @@ try {
         json_response(false, null, 'name is required');
     }
 
-    if (strpos($name, '/') !== false) {
-        $parts = explode('/', $name, 2);
-        $group = $parts[0];
-        $model = $parts[1];
-        if ($group === '' || $model === '') {
-            json_response(false, null, 'Invalid name format');
-        }
+    // 清理模型名称
+    $name = preg_replace('/[^a-zA-Z0-9_\-\/\u4e00-\u9fff]/', '', $name);
+    if ($name === '') {
+        json_response(false, null, 'Invalid name format');
     }
 
     $modelDir = MODEL_DIR . '/' . $name;

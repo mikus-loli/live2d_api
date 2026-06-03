@@ -777,14 +777,13 @@ function handleUpload(req, res) {
 
     if (!filePart) return jsonRes(res, { success: false, data: null, message: 'No file uploaded' });
     if (!modelName) return jsonRes(res, { success: false, data: null, message: 'model_name is required' });
-    if (modelName.indexOf('/') < 0) return jsonRes(res, { success: false, data: null, message: 'model_name must be in Group/Model format' });
+    // 清理模型名称
+    modelName = modelName.replace(/[^a-zA-Z0-9_\-\/\u4e00-\u9fff]/g, '');
+    if (!modelName) return jsonRes(res, { success: false, data: null, message: 'Invalid model name' });
     if (filePart.data.length > UPLOAD_MAX_SIZE) return jsonRes(res, { success: false, data: null, message: 'File size exceeds maximum allowed size (50MB)' });
 
     var modelDir = path.join(MODEL_DIR, modelName);
-    var parts2 = modelName.split('/', 2);
-    var groupDir = path.join(MODEL_DIR, parts2[0]);
 
-    if (!fs.existsSync(groupDir)) fs.mkdirSync(groupDir, { recursive: true });
     if (!fs.existsSync(modelDir)) fs.mkdirSync(modelDir, { recursive: true });
 
     var originalName = filePart.filename;

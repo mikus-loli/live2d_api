@@ -83,8 +83,10 @@ try {
         json_response(false, null, 'model_name is required');
     }
 
-    if (strpos($modelName, '/') === false) {
-        json_response(false, null, 'model_name must be in Group/Model format');
+    // 清理模型名称，移除不允许的字符
+    $modelName = preg_replace('/[^a-zA-Z0-9_\-\/\u4e00-\u9fff]/', '', $modelName);
+    if ($modelName === '') {
+        json_response(false, null, 'Invalid model name');
     }
 
     $file = $_FILES['file'];
@@ -93,12 +95,7 @@ try {
     }
 
     $modelDir = MODEL_DIR . '/' . $modelName;
-    $parts = explode('/', $modelName, 2);
-    $groupDir = MODEL_DIR . '/' . $parts[0];
 
-    if (!is_dir($groupDir)) {
-        mkdir($groupDir, 0755, true);
-    }
     if (!is_dir($modelDir)) {
         mkdir($modelDir, 0755, true);
     }

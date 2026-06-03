@@ -121,8 +121,8 @@
         <h3 class="modal-title">添加<span class="accent">模型</span></h3>
         <div class="form-group">
             <label class="form-label">模型名称</label>
-            <input type="text" class="form-input" id="create-name" placeholder="分组/模型名">
-            <div class="form-hint">使用 分组/模型名（如 Potion-Maker/Pio）或直接使用目录名（如 六初）</div>
+            <input type="text" class="form-input" id="create-name" placeholder="模型名称">
+            <div class="form-hint">输入模型目录名称（如 Pio、六初），或点击下方按钮浏览未注册目录</div>
         </div>
         <div class="form-group">
             <label class="form-label">描述</label>
@@ -171,18 +171,18 @@
     <div class="modal" id="modal-upload">
         <h3 class="modal-title">上传<span class="accent">模型</span></h3>
         <div class="form-group">
-            <label class="form-label">目标模型名称</label>
-            <input type="text" class="form-input" id="upload-model-name" placeholder="分组/模型名">
-            <div class="form-hint">必须使用 分组/模型名 格式，目录不存在时将自动创建</div>
+            <label class="form-label">模型名称</label>
+            <input type="text" class="form-input" id="upload-model-name" placeholder="选择文件后自动填充">
+            <div class="form-hint">选择文件后自动从文件名获取，可手动修改</div>
         </div>
         <div class="form-group">
             <label class="form-label">文件</label>
             <div class="upload-drop-zone" id="upload-drop-zone">
                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                 <p id="upload-file-label">点击或拖拽文件到此处</p>
-                <p style="font-size: 11px; margin-top: 4px;">支持 .zip, .moc, .json, .mtn, .png, .jpg</p>
+                <p style="font-size: 11px; margin-top: 4px;">支持 .zip, .moc, .moc3, .json, .mtn, .png, .jpg, .avif</p>
             </div>
-            <input type="file" id="upload-file-input" style="display:none" accept=".zip,.moc,.json,.mtn,.png,.jpg">
+            <input type="file" id="upload-file-input" style="display:none" accept=".zip,.moc,.moc3,.json,.mtn,.png,.jpg,.avif">
         </div>
         <div class="upload-progress" id="upload-progress">
             <div class="upload-progress-bar">
