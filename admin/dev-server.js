@@ -553,25 +553,12 @@ function handleEvents(req, res) {
     'Content-Type': 'text/event-stream',
     'Cache-Control': 'no-cache',
     'Connection': 'keep-alive',
-    'Access-Control-Allow-Origin': '*',
   });
   res.write('data: {"type":"connected"}\n\n');
 
   sseClients.push(res);
 
-  // 心跳保活，每15秒发送一次
-  var heartbeat = setInterval(function () {
-    try {
-      res.write(': heartbeat\n\n');
-    } catch (e) {
-      clearInterval(heartbeat);
-      var idx = sseClients.indexOf(res);
-      if (idx >= 0) sseClients.splice(idx, 1);
-    }
-  }, 15000);
-
   req.on('close', function () {
-    clearInterval(heartbeat);
     var idx = sseClients.indexOf(res);
     if (idx >= 0) sseClients.splice(idx, 1);
   });
