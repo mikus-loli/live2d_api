@@ -36,6 +36,10 @@ var Live2DAdminAPI = (function () {
       return request('GET', 'detail.php?model_name=' + encodeURIComponent(modelName));
     },
 
+    getSkins: function (modelName) {
+      return request('GET', 'skins?model_name=' + encodeURIComponent(modelName));
+    },
+
     getGroups: function () {
       return request('GET', 'groups.php');
     },

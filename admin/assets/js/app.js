@@ -226,7 +226,7 @@ var App = (function () {
     var byName = findModelByName(nameOrId);
     if (byName) {
       if (byName.is_multi && byName.sub_models && byName.sub_models.length > 0) {
-        Live2DPreview.loadModel(byName.sub_models[0].name, byName.sub_models[0].is_cubism4);
+        Live2DPreview.loadModelMulti(byName.sub_models, 0);
       } else {
         Live2DPreview.loadModel(byName.name, byName.is_cubism4);
       }
@@ -247,7 +247,7 @@ var App = (function () {
       }
     }
     if (model && model.is_multi && model.sub_models && model.sub_models.length > 0) {
-      Live2DPreview.loadModel(model.sub_models[0].name, model.sub_models[0].is_cubism4);
+      Live2DPreview.loadModelMulti(model.sub_models, 0);
     } else if (model && !model.is_multi) {
       Live2DPreview.loadModel(model.name, model.is_cubism4);
     } else {
@@ -528,6 +528,8 @@ var App = (function () {
     height: 400,
     scale: 1,
     messages: ['你好呀~', '今天天气真好!', '有什么想问的吗?', '欢迎来到这里~', '我是你的看板娘哦~'],
+    skinId: 0,
+    skins: [],
   };
   var genPixiApp = null;
   var genCubism2Loaded = false;
@@ -574,18 +576,24 @@ var App = (function () {
     genState.height = 400;
     genState.scale = 1;
     genState.messages = ['你好呀~', '今天天气真好!', '有什么想问的吗?', '欢迎来到这里~', '我是你的看板娘哦~'];
+    genState.skinId = 0;
+    genState.skins = [];
 
     genState.isCubism4 = false;
+    genState.isMulti = false;
+    genState.subModels = [];
     for (var i = 0; i < models.length; i++) {
       var m = models[i];
       if (m.name === modelName) {
-        if (m.is_cubism4) { genState.isCubism4 = true; break; }
+        if (m.is_cubism4) { genState.isCubism4 = true; }
         if (m.is_multi && m.sub_models) {
+          genState.isMulti = true;
+          genState.subModels = m.sub_models;
           for (var j = 0; j < m.sub_models.length; j++) {
             if (m.sub_models[j].is_cubism4) { genState.isCubism4 = true; break; }
           }
-          if (genState.isCubism4) break;
         }
+        break;
       }
     }
 
@@ -593,32 +601,88 @@ var App = (function () {
     var offsetYEl = document.getElementById('gen-offset-y');
     var widthEl = document.getElementById('gen-width');
     var heightEl = document.getElementById('gen-height');
+    var skinEl = document.getElementById('gen-skin');
+    var skinGroupEl = document.getElementById('gen-skin-group');
     if (offsetXEl) offsetXEl.value = 0;
     if (offsetYEl) offsetYEl.value = 0;
+    if (skinEl) { skinEl.innerHTML = '<option value="0">默认皮肤</option>'; skinEl.value = '0'; }
+    if (skinGroupEl) skinGroupEl.style.display = genState.isCubism4 ? 'none' : '';
 
-    if (!genState.isCubism4) {
-      Live2DAdminAPI.getModelDetail(modelName).then(function (res) {
-        if (res.data && res.data.config && res.data.config.layout) {
-          var dims = computeModelDimensions(res.data.config);
-          genState.width = dims.width;
-          genState.height = dims.height;
-          if (widthEl) widthEl.value = dims.width;
-          if (heightEl) heightEl.value = dims.height;
-        } else {
-          if (widthEl) widthEl.value = genState.width;
-          if (heightEl) heightEl.value = genState.height;
-        }
-        doShowGeneratedCode();
-      }).catch(function () {
+    var pendingTasks = 2;
+    var detailDone = false;
+    var skinsDone = false;
+
+    function checkAllDone() {
+      pendingTasks--;
+      if (pendingTasks <= 0) doShowGeneratedCode();
+    }
+
+    Live2DAdminAPI.getModelDetail(modelName).then(function (res) {
+      if (res.data && res.data.config && res.data.config.layout) {
+        var dims = computeModelDimensions(res.data.config);
+        genState.width = dims.width;
+        genState.height = dims.height;
+        if (widthEl) widthEl.value = dims.width;
+        if (heightEl) heightEl.value = dims.height;
+      } else {
         if (widthEl) widthEl.value = genState.width;
         if (heightEl) heightEl.value = genState.height;
-        doShowGeneratedCode();
-      });
-    } else {
+      }
+      checkAllDone();
+    }).catch(function () {
       if (widthEl) widthEl.value = genState.width;
       if (heightEl) heightEl.value = genState.height;
-      doShowGeneratedCode();
-    }
+      checkAllDone();
+    });
+
+    Live2DAdminAPI.getSkins(modelName).then(function (res) {
+      if (genState.isMulti && genState.subModels.length > 0) {
+        genState.skins = genState.subModels.map(function (sm, idx) {
+          return { id: idx + 1, name: sm.name.split('/').pop(), model_name: sm.name };
+        });
+        if (skinEl) {
+          var html = '';
+          for (var k = 0; k < genState.skins.length; k++) {
+            var s = genState.skins[k];
+            html += '<option value="' + s.id + '">' + s.name + '</option>';
+          }
+          skinEl.innerHTML = html;
+          skinEl.value = '1';
+          genState.skinId = 1;
+        }
+        checkAllDone();
+      } else if (res.data && res.data.skins && res.data.skins.length > 0) {
+        genState.skins = res.data.skins;
+        if (skinEl) {
+          var html = '<option value="0">默认皮肤</option>';
+          for (var k = 0; k < res.data.skins.length; k++) {
+            var s = res.data.skins[k];
+            html += '<option value="' + s.id + '">' + s.name + '</option>';
+          }
+          skinEl.innerHTML = html;
+        }
+        checkAllDone();
+      } else {
+        checkAllDone();
+      }
+    }).catch(function () {
+      if (genState.isMulti && genState.subModels.length > 0) {
+        genState.skins = genState.subModels.map(function (sm, idx) {
+          return { id: idx + 1, name: sm.name.split('/').pop(), model_name: sm.name };
+        });
+        if (skinEl) {
+          var html = '';
+          for (var k = 0; k < genState.skins.length; k++) {
+            var s = genState.skins[k];
+            html += '<option value="' + s.id + '">' + s.name + '</option>';
+          }
+          skinEl.innerHTML = html;
+          skinEl.value = '1';
+          genState.skinId = 1;
+        }
+      }
+      checkAllDone();
+    });
 
     function doShowGeneratedCode() {
       var posBtns = document.querySelectorAll('.gen-btn[data-pos]');
@@ -662,6 +726,12 @@ var App = (function () {
     for (var i = 0; i < scaleBtns.length; i++) {
       scaleBtns[i].classList.toggle('active', parseFloat(scaleBtns[i].getAttribute('data-scale')) === scale);
     }
+    loadGenPreview();
+    updateGenCode();
+  }
+
+  function setGenSkin(skinId) {
+    genState.skinId = parseInt(skinId, 10) || 0;
     loadGenPreview();
     updateGenCode();
   }
@@ -900,7 +970,21 @@ var App = (function () {
   function loadGenPreview2(canvas) {
     canvas.style.display = '';
     if (typeof loadlive2d === 'function') {
-      loadlive2d('gen-preview-canvas', genState.apiBase + '/model/' + encodePath(genState.modelName) + '/index.json');
+      var skinId = genState.skinId || 0;
+      var url;
+      if (genState.isMulti && genState.skins.length > 0 && skinId > 0) {
+        var skin = genState.skins[skinId - 1];
+        if (skin && skin.model_name) {
+          url = genState.apiBase + '/model/' + encodePath(skin.model_name) + '/index.json';
+        } else {
+          url = genState.apiBase + '/model/' + encodePath(genState.modelName) + '/index.json';
+        }
+      } else if (skinId > 0) {
+        url = genState.apiBase + '/model/' + encodePath(genState.modelName) + '/config-' + skinId + '.json';
+      } else {
+        url = genState.apiBase + '/model/' + encodePath(genState.modelName) + '/index.json';
+      }
+      loadlive2d('gen-preview-canvas', url);
       setTimeout(showGenRandomMessage, 500);
     }
   }
@@ -996,6 +1080,20 @@ var App = (function () {
     var h = Math.round(s.height * (s.scale || 1));
     var pos = s.position === 'left' ? 'left' : 'right';
     var msgsJson = JSON.stringify(s.messages || ['你好呀~']);
+    var skinId = s.skinId || 0;
+    var modelUrl;
+    if (s.isMulti && s.skins && s.skins.length > 0 && skinId > 0) {
+      var skin = s.skins[skinId - 1];
+      if (skin && skin.model_name) {
+        modelUrl = apiBase + '/model/' + encodePath(skin.model_name) + '/index.json';
+      } else {
+        modelUrl = apiBase + '/model/' + encodePath(modelName) + '/index.json';
+      }
+    } else if (skinId > 0) {
+      modelUrl = apiBase + '/model/' + encodePath(modelName) + '/config-' + skinId + '.json';
+    } else {
+      modelUrl = apiBase + '/model/' + encodePath(modelName) + '/index.json';
+    }
     var dialogCSS = '#live2d-dialog{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(' + s.offsetY + 'px + ' + (h + 20) + 'px);background:rgba(255,255,255,0.95);border-radius:12px;padding:12px 16px;max-width:280px;min-width:120px;box-shadow:0 4px 20px rgba(0,0,0,0.15);z-index:99998;display:none;animation:dialogFadeIn 0.3s ease}#live2d-dialog.show{display:block}#live2d-dialog::after{content:"";position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid rgba(255,255,255,0.95)}#dialog-content{font-size:14px;color:#333;text-align:center;line-height:1.4}@keyframes dialogFadeIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
     return buildEmbedCSS(s) +
       '<style>' + dialogCSS + '</style>\n' +
@@ -1030,7 +1128,7 @@ var App = (function () {
       'document.addEventListener("visibilitychange",function(){if(!document.hidden)showDialog(backMsg,4000)});\n' +
       'window.addEventListener("scroll",function(){var st=document.documentElement.scrollTop||document.body.scrollTop,sh=document.documentElement.scrollHeight-document.documentElement.clientHeight,pct=Math.round(st/sh*100);["25","50","75","100"].forEach(function(m){if(pct>=parseInt(m)&&!scrollFired[m]){scrollFired[m]=true;showDialog(scrollMsgs[m],4000)}})});\n' +
       'setInterval(function(){if(window.outerWidth-window.innerWidth>160||window.outerHeight-window.innerHeight>160){if(consoleMsg){showDialog(consoleMsg,4000);consoleMsg=null}}},1000);\n' +
-      'var s=document.createElement("script");s.src="' + apiBase + '/live2d.min.js";s.onload=function(){loadlive2d("live2d","' + apiBase + '/model/' + encodePath(modelName) + '/index.json");setTimeout(function(){cv.classList.add("show");var tm=getTimeMsg();if(tm)showDialog(tm,6000);else showDialog(welcomeMsg,6000)},800)};document.head.appendChild(s)\n' +
+      'var s=document.createElement("script");s.src="' + apiBase + '/live2d.min.js";s.onload=function(){loadlive2d("live2d","' + modelUrl + '");setTimeout(function(){cv.classList.add("show");var tm=getTimeMsg();if(tm)showDialog(tm,6000);else showDialog(welcomeMsg,6000)},800)};document.head.appendChild(s)\n' +
       '})();\n' +
       '<\/script>';
   }
@@ -1276,6 +1374,7 @@ var App = (function () {
     setGenScale: setGenScale,
     updateGenCode: updateGenCode,
     updateGenMessages: updateGenMessages,
+    setGenSkin: setGenSkin,
     closeGenModal: function () {
       destroyGenPixi();
       UI.closeModal('modal-generate');

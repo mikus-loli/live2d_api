@@ -881,12 +881,13 @@ function handleAPI(req, res, urlPath) {
     models.forEach(function (entry, idx) {
       var message = messages[idx] || '';
       if (Array.isArray(entry)) {
-        var group = entry[0];
+        var firstPath = entry[0];
+        var group = firstPath.split('/')[0];
         var subModels = [];
-        for (var s = 1; s < entry.length; s++) {
+        for (var s = 0; s < entry.length; s++) {
           var subName = entry[s];
           var subDir = path.join(MODEL_DIR, subName);
-          if (!fs.existsSync(subDir)) return;
+          if (!fs.existsSync(subDir)) continue;
           var subInfo = getModelInfo(subName);
           subModels.push({
             id: null, name: subName, group: group,

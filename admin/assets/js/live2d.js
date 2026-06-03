@@ -3,10 +3,13 @@ var Live2DPreview = (function () {
   var canvas4 = null;
   var currentModel = null;
   var currentSkinId = 0;
+  var currentExpressionIdx = -1;
   var panelOpen = false;
   var pixiApp = null;
   var pixiModel = null;
   var skinsData = { count: 0, list: [], loaded: {} };
+  var subModelsData = { isMulti: false, list: [], currentIdx: 0 };
+  var expressionsData = { list: [], loaded: {} };
   var preloadQueue = [];
   var isSwitching = false;
   var dialogTimeout = null;
@@ -141,6 +144,9 @@ var Live2DPreview = (function () {
 
     currentModel = modelName;
     currentSkinId = 0;
+    subModelsData = { isMulti: false, list: [], currentIdx: 0 };
+    expressionsData = { list: [], loaded: {} };
+    currentExpressionIdx = -1;
     openPanel();
     removeFallback();
     destroyPixi();
@@ -151,11 +157,65 @@ var Live2DPreview = (function () {
 
     if (isCubism4) {
       loadModel4(modelName);
+      updateSkinSelector();
+      updateExpressionSelector();
     } else {
       fetchSkinsList(modelName);
     }
 
     setTimeout(showRandomMessage, 800);
+  }
+
+  function loadModelMulti(subModels, initialIdx) {
+    if (!canvas2) init();
+    if (!canvas2 || !subModels || subModels.length === 0) return;
+
+    subModelsData = { isMulti: true, list: subModels, currentIdx: initialIdx || 0 };
+    currentModel = subModels[initialIdx || 0].name;
+    currentSkinId = 0;
+    expressionsData = { list: [], loaded: {} };
+    currentExpressionIdx = -1;
+    skinsData = { count: 0, list: [], loaded: {} };
+    openPanel();
+    removeFallback();
+    destroyPixi();
+    hideDialog();
+
+    var modelInfo = document.getElementById('preview-model-name');
+    if (modelInfo) modelInfo.textContent = currentModel;
+
+    var subModel = subModelsData.list[subModelsData.currentIdx];
+    if (subModel.is_cubism4) {
+      loadModel4(subModel.name);
+    } else {
+      loadModel2(subModel.name, 0);
+    }
+    updateSkinSelector();
+    setTimeout(showRandomMessage, 800);
+  }
+
+  function selectSubModel(idx) {
+    if (!subModelsData.isMulti || idx < 0 || idx >= subModelsData.list.length) return;
+    subModelsData.currentIdx = idx;
+    var subModel = subModelsData.list[idx];
+    currentModel = subModel.name;
+    currentSkinId = 0;
+    skinsData = { count: 0, list: [], loaded: {} };
+    expressionsData = { list: [], loaded: {} };
+    currentExpressionIdx = -1;
+
+    var modelInfo = document.getElementById('preview-model-name');
+    if (modelInfo) modelInfo.textContent = currentModel;
+
+    destroyPixi();
+    hideDialog();
+    if (subModel.is_cubism4) {
+      loadModel4(subModel.name);
+      updateExpressionSelector();
+    } else {
+      loadModel2(subModel.name, 0);
+    }
+    updateSkinSelector();
   }
 
   function loadModel2(modelName, skinId) {
@@ -190,10 +250,114 @@ var Live2DPreview = (function () {
 
     try {
       loadlive2d('live2d-canvas', url);
+      fetchExpressionsList(modelName, skinId);
     } catch (e) {
       UI.toast('Live2D 加载错误: ' + e.message, 'error');
       showFallback('Cubism 2 加载失败');
     }
+  }
+
+  function fetchExpressionsList(modelName, skinId) {
+    var url = skinId && skinId > 0
+      ? '../model/' + encodePath(modelName) + '/config-' + skinId + '.json'
+      : '../model/' + encodePath(modelName) + '/index.json';
+
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', url, true);
+    xhr.onload = function () {
+      if (xhr.status === 200) {
+        try {
+          var config = JSON.parse(xhr.responseText);
+          if (config.expressions && Array.isArray(config.expressions)) {
+            expressionsData.list = config.expressions;
+            currentExpressionIdx = -1;
+            updateExpressionSelector();
+          } else {
+            expressionsData.list = [];
+            currentExpressionIdx = -1;
+            updateExpressionSelector();
+          }
+        } catch (e) {
+          expressionsData.list = [];
+          updateExpressionSelector();
+        }
+      } else {
+        expressionsData.list = [];
+        updateExpressionSelector();
+      }
+    };
+    xhr.onerror = function () {
+      expressionsData.list = [];
+      updateExpressionSelector();
+    };
+    xhr.send();
+  }
+
+  function setExpression(idx) {
+    if (idx < 0 || idx >= expressionsData.list.length) return;
+    var expr = expressionsData.list[idx];
+    if (!expr || !expr.name) return;
+
+    currentExpressionIdx = idx;
+
+    if (typeof live2d_setExpression === 'function') {
+      live2d_setExpression('live2d-canvas', expr.name);
+    }
+
+    updateExpressionSelector();
+  }
+
+  function prevExpression() {
+    if (expressionsData.list.length === 0) return;
+    var newIdx = currentExpressionIdx - 1;
+    if (newIdx < 0) newIdx = expressionsData.list.length - 1;
+    setExpression(newIdx);
+  }
+
+  function nextExpression() {
+    if (expressionsData.list.length === 0) return;
+    var newIdx = currentExpressionIdx + 1;
+    if (newIdx >= expressionsData.list.length) newIdx = 0;
+    setExpression(newIdx);
+  }
+
+  function resetExpression() {
+    currentExpressionIdx = -1;
+    var canvas = document.getElementById('live2d-canvas');
+    if (!canvas) return;
+
+    if (typeof live2d_resetExpression === 'function') {
+      live2d_resetExpression('live2d-canvas');
+    } else if (canvas._live2d && canvas._live2d.model) {
+      try {
+        canvas._live2d.model.resetExpression();
+      } catch (e) {}
+    }
+
+    updateExpressionSelector();
+  }
+
+  function updateExpressionSelector() {
+    var container = document.getElementById('expression-selector');
+    if (!container) return;
+
+    if (expressionsData.list.length === 0) {
+      container.innerHTML = '<span class="skin-info">无表情</span>';
+      return;
+    }
+
+    var html = '<select id="expr-dropdown" onchange="Live2DPreview.setExpression(this.value)">';
+    html += '<option value="-1">默认</option>';
+    for (var i = 0; i < expressionsData.list.length; i++) {
+      var expr = expressionsData.list[i];
+      var selected = (i === currentExpressionIdx) ? ' selected' : '';
+      html += '<option value="' + i + '"' + selected + '>' + expr.name + '</option>';
+    }
+    html += '</select>';
+    html += '<span class="skin-count">' + (currentExpressionIdx >= 0 ? currentExpressionIdx + 1 : 0) + ' / ' + expressionsData.list.length + '</span>';
+    html += '<button class="skin-prev" onclick="Live2DPreview.prevExpression()">◀</button>';
+    html += '<button class="skin-next" onclick="Live2DPreview.nextExpression()">▶</button>';
+    container.innerHTML = html;
   }
 
   function loadModel4(modelName) {
@@ -313,6 +477,22 @@ var Live2DPreview = (function () {
     var container = document.getElementById('skin-selector');
     if (!container) return;
 
+    if (subModelsData.isMulti && subModelsData.list.length > 1) {
+      var html = '<select id="skin-dropdown" onchange="Live2DPreview.selectSubModel(this.value)">';
+      for (var i = 0; i < subModelsData.list.length; i++) {
+        var sub = subModelsData.list[i];
+        var name = sub.name.split('/').pop();
+        var selected = (i === subModelsData.currentIdx) ? ' selected' : '';
+        html += '<option value="' + i + '"' + selected + '>' + name + '</option>';
+      }
+      html += '</select>';
+      html += '<span class="skin-count">' + (subModelsData.currentIdx + 1) + ' / ' + subModelsData.list.length + '</span>';
+      html += '<button class="skin-prev" onclick="Live2DPreview.prevSubModel()">◀</button>';
+      html += '<button class="skin-next" onclick="Live2DPreview.nextSubModel()">▶</button>';
+      container.innerHTML = html;
+      return;
+    }
+
     if (skinsData.count <= 1) {
       container.innerHTML = '<span class="skin-info">无可切换皮肤</span>';
       return;
@@ -330,6 +510,20 @@ var Live2DPreview = (function () {
     html += '<button class="skin-prev" onclick="Live2DPreview.prevSkin()">◀</button>';
     html += '<button class="skin-next" onclick="Live2DPreview.nextSkin()">▶</button>';
     container.innerHTML = html;
+  }
+
+  function prevSubModel() {
+    if (!subModelsData.isMulti) return;
+    var newIdx = subModelsData.currentIdx - 1;
+    if (newIdx < 0) newIdx = subModelsData.list.length - 1;
+    selectSubModel(newIdx);
+  }
+
+  function nextSubModel() {
+    if (!subModelsData.isMulti) return;
+    var newIdx = subModelsData.currentIdx + 1;
+    if (newIdx >= subModelsData.list.length) newIdx = 0;
+    selectSubModel(newIdx);
   }
 
   function updateSkinSelectorForCubism4() {
@@ -483,13 +677,23 @@ var Live2DPreview = (function () {
   return {
     init: init,
     loadModel: loadModel,
+    loadModelMulti: loadModelMulti,
     closePanel: closePanel,
     switchTexture: switchTexture,
     selectSkin: selectSkin,
     prevSkin: prevSkin,
     nextSkin: nextSkin,
+    selectSubModel: selectSubModel,
+    prevSubModel: prevSubModel,
+    nextSubModel: nextSubModel,
+    setExpression: setExpression,
+    prevExpression: prevExpression,
+    nextExpression: nextExpression,
+    resetExpression: resetExpression,
     isOpen: isOpen,
     getSkinsData: function () { return skinsData; },
+    getSubModelsData: function () { return subModelsData; },
+    getExpressionsData: function () { return expressionsData; },
     showDialog: showDialog,
     hideDialog: hideDialog,
     showRandomMessage: showRandomMessage,

@@ -111,6 +111,7 @@
         </div>
         <div class="preview-controls">
             <div id="skin-selector" class="skin-selector"></div>
+            <div id="expression-selector" class="skin-selector"></div>
         </div>
     </div>
 
@@ -252,6 +253,12 @@
                         <button class="gen-btn" data-scale="1.5" onclick="App.setGenScale(1.5)">1.5x</button>
                         <button class="gen-btn" data-scale="2" onclick="App.setGenScale(2)">2x</button>
                     </div>
+                </div>
+                <div class="gen-config-group" id="gen-skin-group">
+                    <label class="gen-config-label">皮肤选择</label>
+                    <select class="gen-config-select" id="gen-skin" onchange="App.setGenSkin(this.value)">
+                        <option value="0">默认皮肤</option>
+                    </select>
                 </div>
                 <div class="gen-config-group">
                     <label class="gen-config-label">聊天内容 <span style="color:var(--text-tertiary);font-size:11px">（每行一条消息）</span></label>
