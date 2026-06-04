@@ -1,13 +1,19 @@
 <?php
-isset($_GET['id']) ? $modelId = (int)$_GET['id'] : exit('error');
+if (!isset($_GET['id'])) {
+    header("Content-type: application/json");
+    echo json_encode(array('error' => 'id parameter is required'));
+    exit;
+}
+
+$modelId = (int)$_GET['id'];
 
 require '../tools/modelList.php';
 require '../tools/jsonCompatible.php';
 
-$modelList = new modelList();
+$modelListObj = new modelList();
 $jsonCompatible = new jsonCompatible();
 
-$modelList = $modelList->get_list();
+$modelList = $modelListObj->get_list();
 $modelSwitchId = $modelId + 1;
 if (!isset($modelList['models'][$modelSwitchId-1])) $modelSwitchId = 1;
 

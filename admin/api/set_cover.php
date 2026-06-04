@@ -2,6 +2,8 @@
 
 require __DIR__ . '/config.php';
 
+require_auth();
+
 try {
     if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
         json_response(false, null, 'Method not allowed');
@@ -28,8 +30,8 @@ try {
         json_response(false, null, 'model_name is required');
     }
 
-    $modelName = preg_replace('/[^a-zA-Z0-9_\-\/\u4e00-\u9fff]/', '', $modelName);
-    if ($modelName === '') {
+    $modelName = preg_replace('/[^a-zA-Z0-9_\-\/\x{4e00}-\x{9fff}]/u', '', $modelName);
+    if ($modelName === '' || !validate_model_name($modelName)) {
         json_response(false, null, 'Invalid model name');
     }
 

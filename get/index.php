@@ -65,12 +65,20 @@ function load_config($dir) {
 
 if (isset($_GET['name'])) {
     $modelName = $_GET['name'];
-    if (!validate_model_name($modelName)) exit('{"error":"invalid model name"}');
+    if (!validate_model_name($modelName)) {
+        header("Content-type: application/json; charset=utf-8");
+        echo json_encode(array('error' => 'invalid model name'));
+        exit;
+    }
     $modelTexturesId = isset($_GET['textures_id']) ? (int)$_GET['textures_id'] : 0;
 
     $dir = '../model/' . $modelName;
     list($json, $configFile) = load_config($dir);
-    if ($json === null) exit('{"error":"model config not found"}');
+    if ($json === null) {
+        header("Content-type: application/json; charset=utf-8");
+        echo json_encode(array('error' => 'model config not found'));
+        exit;
+    }
 
     if ($modelTexturesId > 0) {
         $modelTexturesName = $modelTextures->get_name($modelName, $modelTexturesId);
@@ -78,28 +86,47 @@ if (isset($_GET['name'])) {
     }
 } elseif (isset($_GET['id'])) {
     $id = explode('-', $_GET['id']);
-    if (count($id) > 2) exit('{"error":"invalid id format"}');
+    if (count($id) > 2) {
+        header("Content-type: application/json; charset=utf-8");
+        echo json_encode(array('error' => 'invalid id format'));
+        exit;
+    }
     $modelId = (int)$id[0];
     $modelTexturesId = isset($id[1]) ? (int)$id[1] : 0;
 
     $modelName = $modelList->id_to_name($modelId);
+    if ($modelName === null) {
+        header("Content-type: application/json; charset=utf-8");
+        echo json_encode(array('error' => 'invalid model id'));
+        exit;
+    }
 
     if (is_array($modelName)) {
         $modelName = $modelTexturesId > 0 ? $modelName[$modelTexturesId-1] : $modelName[0];
         $dir = '../model/' . $modelName;
         list($json, $configFile) = load_config($dir);
-        if ($json === null) exit('{"error":"model config not found"}');
+        if ($json === null) {
+            header("Content-type: application/json; charset=utf-8");
+            echo json_encode(array('error' => 'model config not found'));
+            exit;
+        }
     } else {
         $dir = '../model/' . $modelName;
         list($json, $configFile) = load_config($dir);
-        if ($json === null) exit('{"error":"model config not found"}');
+        if ($json === null) {
+            header("Content-type: application/json; charset=utf-8");
+            echo json_encode(array('error' => 'model config not found'));
+            exit;
+        }
         if ($modelTexturesId > 0) {
             $modelTexturesName = $modelTextures->get_name($modelName, $modelTexturesId);
             if (isset($modelTexturesName)) $json['textures'] = is_array($modelTexturesName) ? $modelTexturesName : array($modelTexturesName);
         }
     }
 } else {
-    exit('error');
+    header("Content-type: application/json; charset=utf-8");
+    echo json_encode(array('error' => 'name or id parameter is required'));
+    exit;
 }
 
 foreach ($json['textures'] as $k => $texture)

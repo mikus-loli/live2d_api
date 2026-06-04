@@ -2,6 +2,8 @@
 
 require __DIR__ . '/config.php';
 
+require_auth();
+
 try {
     $input = get_json_input();
     if (!$input) {
@@ -16,8 +18,8 @@ try {
     }
 
     // 清理模型名称
-    $name = preg_replace('/[^a-zA-Z0-9_\-\/\u4e00-\u9fff]/', '', $name);
-    if ($name === '') {
+    $name = preg_replace('/[^a-zA-Z0-9_\-\/\x{4e00}-\x{9fff}]/u', '', $name);
+    if ($name === '' || !validate_model_name($name)) {
         json_response(false, null, 'Invalid name format');
     }
 

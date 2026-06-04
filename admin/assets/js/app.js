@@ -67,6 +67,25 @@ var App = (function () {
   }
 
   function bindEvents() {
+    // 事件委托：处理 data-action 按钮
+    document.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      var action = btn.getAttribute('data-action');
+      var name = btn.getAttribute('data-name');
+      var id = btn.getAttribute('data-id');
+      var message = btn.getAttribute('data-message');
+      switch (action) {
+        case 'preview': previewModel(id || name); break;
+        case 'detail': viewDetail(name); break;
+        case 'edit': editModel(name, message); break;
+        case 'codegen': generateCode(name); break;
+        case 'cover': setModelCover(name); break;
+        case 'delete': confirmDelete(name); break;
+        case 'filter-group': filterGroup(btn.getAttribute('data-group')); break;
+      }
+    });
+
     var searchInput = document.getElementById('search-input');
     if (searchInput) {
       searchInput.addEventListener('input', debounce(function () {

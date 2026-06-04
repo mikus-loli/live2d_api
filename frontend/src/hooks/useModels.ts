@@ -12,7 +12,7 @@ interface ModelState {
   setActiveCategory: (c: string) => void;
 }
 
-export const useModelStore = create<ModelState>((set, get) => ({
+export const useModelStore = create<ModelState>((set) => ({
   models: null,
   loading: false,
   error: null,
@@ -24,8 +24,9 @@ export const useModelStore = create<ModelState>((set, get) => ({
     try {
       const data = await fetchModelList();
       set({ models: data, loading: false });
-    } catch (e: any) {
-      set({ error: e.message, loading: false });
+    } catch (e: unknown) {
+      const message = e instanceof Error ? e.message : String(e);
+      set({ error: message, loading: false });
     }
   },
 

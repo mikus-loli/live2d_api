@@ -2,6 +2,8 @@
 
 require __DIR__ . '/config.php';
 
+require_auth();
+
 try {
     $input = get_json_input();
     if (!$input) {
@@ -13,6 +15,10 @@ try {
 
     if ($name === '') {
         json_response(false, null, 'name is required');
+    }
+
+    if (!validate_model_name($name)) {
+        json_response(false, null, 'Invalid name format');
     }
 
     $list = get_model_list();

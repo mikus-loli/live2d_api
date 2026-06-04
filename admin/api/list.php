@@ -2,6 +2,8 @@
 
 require __DIR__ . '/config.php';
 
+require_auth();
+
 try {
     $modelList = get_model_list();
     $models = $modelList['models'];

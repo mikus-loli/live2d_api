@@ -43,6 +43,7 @@ export default function HeroSection() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="搜索模型..."
+            aria-label="搜索模型"
             className="w-full pl-12 pr-4 py-3 bg-white/80 border border-gray-300 rounded-full text-gray-900 placeholder-gray-400 focus:outline-none focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/30 transition-all"
           />
         </div>

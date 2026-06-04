@@ -8,7 +8,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 if (session_status() === PHP_SESSION_NONE) {
-    session_set_cookie_params(SESSION_LIFETIME, '/admin/', '', false, true);
+    $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off');
+    session_set_cookie_params(SESSION_LIFETIME, '/admin/', '', $secure, true);
     session_start();
 }
 

@@ -2,6 +2,7 @@ import { useModelStore } from '@/hooks/useModels';
 import ModelCard from './ModelCard';
 import { useMemo } from 'react';
 import { PackageOpen } from 'lucide-react';
+import type { ModelListResponse } from '@/utils/api';
 
 interface FlatModel {
   name: string;
@@ -10,22 +11,22 @@ interface FlatModel {
   preview: string | null;
 }
 
-function flattenModels(models: any[], messages: string[], skinCounts: (number | number[])[], previewsArr: (string | string[] | null)[], search: string, category: string): FlatModel[] {
+function flattenModels(models: ModelListResponse['models'], _messages: string[], skinCounts: (number | number[])[], previewsArr: (string | string[] | null)[], search: string, category: string): FlatModel[] {
   const result: FlatModel[] = [];
   models.forEach((m, idx) => {
     if (typeof m === 'string') {
       const parts = m.split('/');
       const group = parts.length > 1 ? parts[0] : '';
       const name = m;
-      const sc = (Array.isArray(skinCounts[idx]) ? skinCounts[idx][0] : skinCounts[idx]) || 1;
-      const pv = Array.isArray(previewsArr[idx]) ? previewsArr[idx][0] : (previewsArr[idx] || null);
+      const sc = (Array.isArray(skinCounts[idx]) ? (skinCounts[idx] as number[])[0] : skinCounts[idx]) || 1;
+      const pv = Array.isArray(previewsArr[idx]) ? (previewsArr[idx] as string[])[0] : (previewsArr[idx] || null);
       result.push({ name, group, skinCount: sc, preview: pv });
     } else if (Array.isArray(m)) {
       m.forEach((sub, subIdx) => {
         const parts = sub.split('/');
         const group = parts.length > 1 ? parts[0] : '';
-        const sc = (Array.isArray(skinCounts[idx]) ? skinCounts[idx][subIdx] : 1) || m.length;
-        const pv = Array.isArray(previewsArr[idx]) ? (previewsArr[idx][subIdx] || null) : null;
+        const sc = (Array.isArray(skinCounts[idx]) ? (skinCounts[idx] as number[])[subIdx] : 1) || m.length;
+        const pv = Array.isArray(previewsArr[idx]) ? ((previewsArr[idx] as string[])[subIdx] || null) : null;
         result.push({ name: sub, group, skinCount: sc, preview: pv });
       });
     }

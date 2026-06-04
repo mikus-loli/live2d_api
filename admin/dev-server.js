@@ -374,8 +374,9 @@ function createSession(res, user) {
     user: { username: user.username, role: user.role },
     created: Date.now(),
   };
+  var secure = process.env.NODE_ENV === 'production' ? '; Secure' : '';
   res.setHeader('Set-Cookie',
-    'admin_token=' + token + '; Path=/admin/; HttpOnly; SameSite=Strict; Max-Age=' + SESSION_LIFETIME);
+    'admin_token=' + token + '; Path=/admin/; HttpOnly; SameSite=Strict; Max-Age=' + SESSION_LIFETIME + secure);
   return token;
 }
 
@@ -395,9 +396,19 @@ function requireAuth(req, res) {
   return user;
 }
 
+var MAX_BODY_SIZE = 10 * 1024 * 1024; // 10MB 请求体大小限制
+
 function readBody(req, cb) {
   var body = '';
-  req.on('data', function (c) { body += c; });
+  var size = 0;
+  req.on('data', function (c) {
+    size += c.length;
+    if (size > MAX_BODY_SIZE) {
+      req.destroy();
+      return;
+    }
+    body += c;
+  });
   req.on('end', function () { cb(body); });
 }
 
@@ -1428,7 +1439,7 @@ function handleAPI(req, res, urlPath) {
       try {
         fs.writeFileSync(destPath, filePart.data);
       } catch (writeErr) {
-        return jsonRes(res, { success: false, data: null, message: 'Failed to write preview: ' + writeErr.message });
+        return jsonRes(res, { success: false, data: null, message: 'Failed to write preview' });
       }
       invalidateModelListCache();
       jsonRes(res, { success: true, data: { preview: 'model/' + modelName.replace(/\\/g, '/') + '/' + previewFile }, message: 'Cover updated' });
@@ -1442,8 +1453,9 @@ function handleAPI(req, res, urlPath) {
         var input = JSON.parse(body);
         var name = (input.name || '').trim();
         var message = (input.message || '').trim();
+        if (!name || !isPathSafe(name)) return jsonRes(res, { success: false, data: null, message: 'Invalid model name' });
         var dirPath = path.join(MODEL_DIR, name);
-        if (!name || (!fs.existsSync(dirPath))) return jsonRes(res, { success: false, data: null, message: '模型目录不存在' });
+        if (!fs.existsSync(dirPath)) return jsonRes(res, { success: false, data: null, message: '模型目录不存在' });
         invalidateModelListCache();
         jsonRes(res, { success: true, data: { name: name, message: message }, message: 'Created' });
       } catch (e) { jsonRes(res, { success: false, data: null, message: '创建失败' }); }
@@ -1459,6 +1471,8 @@ function handleAPI(req, res, urlPath) {
         var newName = (input.new_name || '').trim();
         var message = input.message;
         if (!oldName) return jsonRes(res, { success: false, data: null, message: 'Missing old_name' });
+        if (!isPathSafe(oldName)) return jsonRes(res, { success: false, data: null, message: 'Invalid old_name' });
+        if (newName && !isPathSafe(newName)) return jsonRes(res, { success: false, data: null, message: 'Invalid new_name' });
         var oldDir = path.join(MODEL_DIR, oldName);
         if (!fs.existsSync(oldDir)) return jsonRes(res, { success: false, data: null, message: 'Model not found' });
         if (newName && newName !== oldName) {
@@ -1481,7 +1495,14 @@ function handleAPI(req, res, urlPath) {
         var name = (input.name || '').trim();
         var confirm = !!input.confirm;
         if (!name) return jsonRes(res, { success: false, data: null, message: 'Missing name' });
+        if (!isPathSafe(name)) return jsonRes(res, { success: false, data: null, message: 'Invalid name' });
         var dir = path.join(MODEL_DIR, name);
+        // 安全检查：确保删除路径在MODEL_DIR内
+        var realDir = fs.existsSync(dir) ? fs.realpathSync(dir) : dir;
+        var realModelDir = fs.realpathSync(MODEL_DIR);
+        if (realDir !== realModelDir && realDir.indexOf(realModelDir + path.sep) !== 0) {
+          return jsonRes(res, { success: false, data: null, message: 'Invalid path' });
+        }
         if (!fs.existsSync(dir)) return jsonRes(res, { success: false, data: null, message: 'Model not found' });
         if (confirm) {
           function rmdirRecursive(p) {
@@ -1669,6 +1690,15 @@ var server = http.createServer(function (req, res) {
     filePath = path.join(BASE, 'admin', 'index.html');
   } else {
     filePath = path.join(BASE, urlPath);
+  }
+
+  // 防止路径遍历：确保解析后的路径在BASE目录内
+  var resolvedPath = path.resolve(filePath);
+  var resolvedBase = path.resolve(BASE);
+  if (resolvedPath.indexOf(resolvedBase + path.sep) !== 0 && resolvedPath !== resolvedBase) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    res.end('Forbidden');
+    return;
   }
 
   if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {

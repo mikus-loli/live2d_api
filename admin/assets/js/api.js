@@ -15,6 +15,9 @@ var Live2DAdminAPI = (function () {
 
     return fetch(BASE_URL + endpoint, opts)
       .then(function (res) {
+        if (!res.ok) {
+          throw new Error('HTTP error ' + res.status);
+        }
         return res.json();
       })
       .then(function (json) {

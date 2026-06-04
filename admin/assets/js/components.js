@@ -66,6 +66,10 @@ var UI = (function () {
     overlay(false);
   }
 
+  function escapeAttr(str) {
+    return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
   function renderModelCard(model) {
     var statusTags = '';
     if (model.has_moc) statusTags += '<span class="tag tag-moc">MOC</span>';
@@ -82,7 +86,7 @@ var UI = (function () {
     var groupLabel = model.group ? '<span class="card-group">' + escapeHtml(model.group) + '</span>' : '';
 
     if (model.is_multi) {
-      return '<div class="model-card multi" data-id="' + model.id + '" data-group="' + escapeHtml(model.group) + '">' +
+      return '<div class="model-card multi" data-id="' + escapeAttr(model.id) + '" data-group="' + escapeAttr(model.group) + '">' +
         '<div class="card-header">' +
         '<div class="card-icon multi-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v3"/></svg></div>' +
         '<div class="card-title-wrap"><h3 class="card-title">' + escapeHtml(displayName) + '</h3>' + groupLabel + '</div>' +
@@ -93,17 +97,17 @@ var UI = (function () {
         '<p class="card-sub-count">' + (model.sub_models ? model.sub_models.length : 0) + ' 子模型</p>' +
         '</div>' +
         '<div class="card-actions">' +
-        '<button class="btn btn-sm btn-outline" onclick="App.previewModel(\'' + model.id + '\')">预览</button>' +
-        '<button class="btn btn-sm btn-outline" onclick="App.viewDetail(\'' + escapeHtml(model.sub_models && model.sub_models[0] ? model.sub_models[0].name : '') + '\')">详情</button>' +
-        '<button class="btn btn-sm btn-outline" onclick="App.editModel(\'' + escapeHtml(model.name) + '\', \'' + escapeHtml(model.message || '') + '\')">编辑</button>' +
-        '<button class="btn btn-sm btn-code" onclick="App.generateCode(\'' + escapeHtml(model.name) + '\')">生成代码</button>' +
-      '<button class="btn btn-sm btn-outline" onclick="App.setModelCover(\'' + escapeHtml(model.name) + '\')">封面</button>' +
-      '<button class="btn btn-sm btn-danger-outline" onclick="App.confirmDelete(\'' + escapeHtml(model.name) + '\')">删除</button>' +
+        '<button class="btn btn-sm btn-outline" data-action="preview" data-id="' + escapeAttr(model.id) + '">预览</button>' +
+        '<button class="btn btn-sm btn-outline" data-action="detail" data-name="' + escapeAttr(model.sub_models && model.sub_models[0] ? model.sub_models[0].name : '') + '">详情</button>' +
+        '<button class="btn btn-sm btn-outline" data-action="edit" data-name="' + escapeAttr(model.name) + '" data-message="' + escapeAttr(model.message || '') + '">编辑</button>' +
+        '<button class="btn btn-sm btn-code" data-action="codegen" data-name="' + escapeAttr(model.name) + '">生成代码</button>' +
+        '<button class="btn btn-sm btn-outline" data-action="cover" data-name="' + escapeAttr(model.name) + '">封面</button>' +
+        '<button class="btn btn-sm btn-danger-outline" data-action="delete" data-name="' + escapeAttr(model.name) + '">删除</button>' +
       '</div>' +
       '</div>';
   }
 
-  return '<div class="model-card" data-name="' + escapeHtml(model.name) + '" data-group="' + escapeHtml(model.group) + '">' +
+  return '<div class="model-card" data-name="' + escapeAttr(model.name) + '" data-group="' + escapeAttr(model.group) + '">' +
       '<div class="card-header">' +
       '<div class="card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>' +
       '<div class="card-title-wrap"><h3 class="card-title">' + escapeHtml(displayName) + '</h3>' + groupLabel + '</div>' +
@@ -114,12 +118,12 @@ var UI = (function () {
       '<div class="card-meta">' + skinsInfo + filesInfo + '</div>' +
       '</div>' +
       '<div class="card-actions">' +
-      '<button class="btn btn-sm btn-glow" onclick="App.previewModel(\'' + escapeHtml(model.name) + '\')">预览</button>' +
-      '<button class="btn btn-sm btn-outline" onclick="App.viewDetail(\'' + escapeHtml(model.name) + '\')">详情</button>' +
-      '<button class="btn btn-sm btn-outline" onclick="App.editModel(\'' + escapeHtml(model.name) + '\', \'' + escapeHtml(model.message || '') + '\')">编辑</button>' +
-      '<button class="btn btn-sm btn-code" onclick="App.generateCode(\'' + escapeHtml(model.name) + '\')">生成代码</button>' +
-      '<button class="btn btn-sm btn-outline" onclick="App.setModelCover(\'' + escapeHtml(model.name) + '\')">封面</button>' +
-      '<button class="btn btn-sm btn-danger-outline" onclick="App.confirmDelete(\'' + escapeHtml(model.name) + '\')">删除</button>' +
+      '<button class="btn btn-sm btn-glow" data-action="preview" data-name="' + escapeAttr(model.name) + '">预览</button>' +
+      '<button class="btn btn-sm btn-outline" data-action="detail" data-name="' + escapeAttr(model.name) + '">详情</button>' +
+      '<button class="btn btn-sm btn-outline" data-action="edit" data-name="' + escapeAttr(model.name) + '" data-message="' + escapeAttr(model.message || '') + '">编辑</button>' +
+      '<button class="btn btn-sm btn-code" data-action="codegen" data-name="' + escapeAttr(model.name) + '">生成代码</button>' +
+      '<button class="btn btn-sm btn-outline" data-action="cover" data-name="' + escapeAttr(model.name) + '">封面</button>' +
+      '<button class="btn btn-sm btn-danger-outline" data-action="delete" data-name="' + escapeAttr(model.name) + '">删除</button>' +
       '</div>' +
       '</div>';
   }
@@ -199,7 +203,7 @@ var UI = (function () {
 
   function renderGroupItem(group, activeGroup) {
     var isActive = group.name === activeGroup;
-    return '<div class="sidebar-group-item' + (isActive ? ' active' : '') + '" data-group="' + escapeHtml(group.name) + '" onclick="App.filterGroup(\'' + escapeHtml(group.name) + '\')">' +
+    return '<div class="sidebar-group-item' + (isActive ? ' active' : '') + '" data-group="' + escapeAttr(group.name) + '" data-action="filter-group">' +
       '<span class="group-name">' + escapeHtml(group.name) + '</span>' +
       '<span class="group-count">' + group.model_count + '</span>' +
       '</div>';

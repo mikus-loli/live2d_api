@@ -13,6 +13,7 @@ define('SESSION_LIFETIME', 86400);
 header('Access-Control-Allow-Origin: *');
 header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 header('Access-Control-Allow-Headers: Content-Type, Authorization');
+header('Access-Control-Max-Age: 86400');
 
 if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     http_response_code(200);
@@ -132,6 +133,65 @@ function save_model_list($list) {
     // 模型列表基于文件系统自动生成，无需保存
 }
 
+function find_model3_json($dir) {
+    $items = @scandir($dir);
+    if ($items === false) return null;
+    foreach ($items as $item) {
+        if (preg_match('/\.model3\.json$/i', $item)) {
+            return $dir . '/' . $item;
+        }
+    }
+    return null;
+}
+
+function extract_textures_from_config($config) {
+    if (isset($config['FileReferences']['Textures']) && is_array($config['FileReferences']['Textures'])) {
+        return $config['FileReferences']['Textures'];
+    }
+    if (isset($config['textures']) && is_array($config['textures'])) {
+        return $config['textures'];
+    }
+    return array();
+}
+
+function extract_motions_from_config($config) {
+    $motions = array();
+    if (isset($config['motions']) && is_array($config['motions'])) {
+        foreach ($config['motions'] as $group => $motionList) {
+            $motions[$group] = array();
+            foreach ($motionList as $motion) {
+                $entry = array();
+                if (isset($motion['file'])) $entry['file'] = $motion['file'];
+                if (isset($motion['sound'])) $entry['sound'] = $motion['sound'];
+                if (isset($motion['fade_in'])) $entry['fade_in'] = $motion['fade_in'];
+                if (isset($motion['fade_out'])) $entry['fade_out'] = $motion['fade_out'];
+                $motions[$group][] = $entry;
+            }
+        }
+    }
+    if (isset($config['Groups']) && is_array($config['Groups'])) {
+        foreach ($config['Groups'] as $group) {
+            $groupName = isset($group['Name']) ? $group['Name'] : 'Group';
+            if (!isset($motions[$groupName])) $motions[$groupName] = array();
+        }
+    }
+    return $motions;
+}
+
+function has_model_files_in_dir($dir) {
+    if (file_exists($dir . '/index.json')) return true;
+    if (file_exists($dir . '/model.moc')) return true;
+    $items = @scandir($dir);
+    if ($items === false) return false;
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') continue;
+        $ext = strtolower(pathinfo($item, PATHINFO_EXTENSION));
+        if ($ext === 'moc3' || $ext === 'moc') return true;
+        if (preg_match('/\.model3\.json$/i', $item)) return true;
+    }
+    return false;
+}
+
 function scan_dir_recursive($dir, $base = '') {
     $result = array();
     if (!is_dir($dir)) return $result;
@@ -159,6 +219,10 @@ function get_json_input() {
 
 function delete_dir_recursive($dir) {
     if (!is_dir($dir)) return false;
+    $realDir = realpath($dir);
+    $realModelDir = realpath(MODEL_DIR);
+    if ($realDir === false || $realModelDir === false) return false;
+    if ($realDir !== $realModelDir && strpos($realDir, $realModelDir . DIRECTORY_SEPARATOR) !== 0) return false;
     $items = scandir($dir);
     foreach ($items as $item) {
         if ($item === '.' || $item === '..') continue;
@@ -182,7 +246,15 @@ function load_users() {
 function save_users($data) {
     $dir = dirname(USERS_FILE);
     if (!is_dir($dir)) mkdir($dir, 0755, true);
-    file_put_contents(USERS_FILE, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    $tmpFile = tempnam($dir, 'users_');
+    if ($tmpFile === false) return;
+    if (file_put_contents($tmpFile, json_encode($data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT)) === false) {
+        @unlink($tmpFile);
+        return;
+    }
+    if (!rename($tmpFile, USERS_FILE)) {
+        @unlink($tmpFile);
+    }
 }
 
 function find_user($username) {

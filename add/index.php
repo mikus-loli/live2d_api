@@ -20,8 +20,9 @@ foreach ($modelList as $modelName) {
         
         $texturesDiff = array_diff($texturesNew, $textures);
         if (empty($textures)) continue; elseif (empty($texturesDiff)) {
-            echo '<p>'.$modelName.' / textures.cache / No Update.</p>'; 
+            echo '<p>'.$modelName.' / textures.cache / No Update.</p>';
         } else {
+            $texturesMerge = array();
             foreach (array_values(array_unique(array_merge($textures, $texturesNew))) as $v) $texturesMerge[] = json_decode($v, 1);
             file_put_contents('../model/'.$modelName.'/textures.cache', json_encode($texturesMerge, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
             echo '<p>'.$modelName.' / textures.cache / Updated.</p>';

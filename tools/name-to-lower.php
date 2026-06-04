@@ -10,6 +10,6 @@ $path = '../model/test-path';//<--- 在此输入目录路径，并执行本面�
 /*-----------------------------------------------------------------*/
 foreach ( glob($path.'*') as $file ) {
     $new_filename = str_replace(' ', '-', strtolower($file));
-    rename($file, $new_name); echo $file.' -> '.$new_name." ok. \n";
+    rename($file, $new_filename); echo $file.' -> '.$new_filename." ok. \n";
 }
 /*-----------------------------------------------------------------*/

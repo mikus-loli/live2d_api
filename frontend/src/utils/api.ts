@@ -7,9 +7,25 @@ export interface ModelListResponse {
   previews: (string | string[] | null)[];
 }
 
+class ApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApiError';
+    this.status = status;
+  }
+}
+
+async function apiFetch(url: string): Promise<Response> {
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new ApiError(`API request failed: ${res.status}`, res.status);
+  }
+  return res;
+}
+
 export async function fetchModelList(): Promise<ModelListResponse> {
-  // 前台使用公开的 model_list.json，无需认证
-  const res = await fetch(`${API_BASE}/model_list.json`);
+  const res = await apiFetch(`${API_BASE}/model_list.json`);
   const data = await res.json();
   return {
     models: data.models || [],
@@ -19,28 +35,28 @@ export async function fetchModelList(): Promise<ModelListResponse> {
   };
 }
 
-export async function fetchModelConfig(modelName: string, texturesId: number = 0) {
-  const res = await fetch(`${API_BASE}/get/?name=${encodeURIComponent(modelName)}&textures_id=${texturesId}`);
+export async function fetchModelConfig(modelName: string, texturesId: number = 0): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${API_BASE}/get/?name=${encodeURIComponent(modelName)}&textures_id=${texturesId}`);
   return res.json();
 }
 
-export async function fetchRandomModel(groupId: number) {
-  const res = await fetch(`${API_BASE}/rand/?id=${groupId}`);
+export async function fetchRandomModel(groupId: number): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${API_BASE}/rand/?id=${groupId}`);
   return res.json();
 }
 
-export async function fetchSwitchModel(groupId: number) {
-  const res = await fetch(`${API_BASE}/switch/?id=${groupId}`);
+export async function fetchSwitchModel(groupId: number): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${API_BASE}/switch/?id=${groupId}`);
   return res.json();
 }
 
-export async function fetchRandomTexture(id: string) {
-  const res = await fetch(`${API_BASE}/rand_textures/?id=${id}`);
+export async function fetchRandomTexture(id: string): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${API_BASE}/rand_textures/?id=${id}`);
   return res.json();
 }
 
-export async function fetchSwitchTexture(id: string) {
-  const res = await fetch(`${API_BASE}/switch_textures/?id=${id}`);
+export async function fetchSwitchTexture(id: string): Promise<Record<string, unknown>> {
+  const res = await apiFetch(`${API_BASE}/switch_textures/?id=${id}`);
   return res.json();
 }
 
@@ -51,7 +67,7 @@ export interface SkinInfo {
 }
 
 export async function fetchModelSkins(modelName: string): Promise<{ model_name: string; skins_count: number; skins: SkinInfo[] }> {
-  const res = await fetch(`${API_BASE}/skins/?name=${encodeURIComponent(modelName)}`);
+  const res = await apiFetch(`${API_BASE}/skins/?name=${encodeURIComponent(modelName)}`);
   return res.json();
 }
 

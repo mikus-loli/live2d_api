@@ -41,6 +41,7 @@ class modelTextures {
     
     /* 数组穷举合并 */
     function array_exhaustive($arr1, $arr2) {
+        $out = array();
         foreach ($arr2 as $k => $v) {
             if (empty($arr1)) $out[] = $v;
             else foreach ($arr1 as $k2 => $v2) $out[] = str_replace('"["', '","', str_replace('"]"', '","', $v2.$v));

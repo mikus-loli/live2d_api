@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Header from '@/components/Header';
 import Footer from '@/components/Footer';
@@ -105,7 +105,7 @@ function buildMobileCheckScript(s: GenState) {
   return '<script>function _l2dMobileCheck(){var e=document.querySelector(".live2d-wrap"),d=document.getElementById("live2d-dialog");if(!e)return;var isMobile=screen.width<=768||/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);if(isMobile){e.style.display="none";if(d)d.style.display="none"}else{e.style.display="";if(d)d.style.display=""}}_l2dMobileCheck();window.addEventListener("resize",_l2dMobileCheck)<\/script>';
 }
 
-function buildDialogCSS(s: GenState) {
+function buildDialogCSS(_s: GenState) {
   return `#live2d-dialog{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:8px;background:rgba(255,255,255,0.95);border-radius:12px;padding:12px 16px;max-width:280px;min-width:120px;box-shadow:0 4px 20px rgba(0,0,0,0.15);z-index:99998;display:none;animation:dialogFadeIn 0.3s ease}#live2d-dialog.show{display:block}#live2d-dialog::after{content:"";position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid rgba(255,255,255,0.95)}#dialog-content{font-size:14px;color:#333;text-align:center;line-height:1.4}@keyframes dialogFadeIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}`;
 }
 
@@ -237,7 +237,7 @@ export default function ModelDetail() {
   const displayName = decodedName.split('/').pop() || decodedName;
   const modelGroup = decodedName.includes('/') ? decodedName.split('/')[0] : '';
 
-  const [config, setConfig] = useState<any>(null);
+  const [config, setConfig] = useState<Record<string, unknown> | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
 
@@ -266,7 +266,6 @@ export default function ModelDetail() {
 
   // 模拟网页预览常量
   const MOCK_W = 800;
-  const MOCK_H = 500;
   const MOCK_SCALE = MOCK_W / 1920;
   const GEN_PREVIEW_SCALE = 1.5;
 
@@ -288,14 +287,14 @@ export default function ModelDetail() {
   const loadModel = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await fetchModelConfig(decodedName, 0);
+      const data = await fetchModelConfig(decodedName, 0) as Record<string, any>;
       setConfig(data);
 
       // 与后台 computeModelDimensions 完全一致的尺寸计算
-      const layout = data?.layout || {};
+      const layout = (data?.layout || {}) as Record<string, any>;
       const cy = layout.center_y || 0;
       const lw = layout.width || 2;
-      const hitAreas = data?.hit_areas_custom || data?.hit_areas || {};
+      const hitAreas = (data?.hit_areas_custom || data?.hit_areas || {}) as Record<string, any>;
       const allYMin: number[] = [];
       for (const key in hitAreas) {
         const arr = hitAreas[key];
@@ -314,7 +313,7 @@ export default function ModelDetail() {
 
       // 检测 Cubism 4
       const isCubism4 = !!data?.model3;
-      const modelJson = data?.model3 || '';
+      const modelJson: string = (data?.model3 as string) || '';
 
       // 获取皮肤列表和检测多模型分组
       let isMulti = false;
@@ -346,10 +345,10 @@ export default function ModelDetail() {
         try {
           const skinsData = await fetchModelSkins(decodedName);
           if (skinsData.skins && skinsData.skins.length > 0) {
-            skinList = skinsData.skins.map(s => ({
-              id: s.id,
-              name: s.name,
-              textures: s.textures,
+            skinList = skinsData.skins.map((sk: { id: number; name: string; textures?: string[] }) => ({
+              id: sk.id,
+              name: sk.name,
+              textures: sk.textures,
             }));
           }
         } catch (e) { /* skins not available */ }
@@ -375,14 +374,27 @@ export default function ModelDetail() {
   }, [loadModel]);
 
   // 生成代码
-  const generatedCode = genState.isCubism4
-    ? getCodeTemplate4(genState)
-    : getCodeTemplate2(genState);
+  const generatedCode = useMemo(() =>
+    genState.isCubism4 ? getCodeTemplate4(genState) : getCodeTemplate2(genState),
+    [genState]
+  );
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(generatedCode);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+    try {
+      await navigator.clipboard.writeText(generatedCode);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // clipboard API may fail in non-HTTPS
+      const textarea = document.createElement('textarea');
+      textarea.value = generatedCode;
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
   };
 
   // 模型尺寸计算
@@ -392,48 +404,43 @@ export default function ModelDetail() {
   const mockOx = Math.round(genState.offsetX * MOCK_SCALE);
   const mockOy = Math.round(genState.offsetY * MOCK_SCALE);
 
-  // 预览 iframe - canvas 尺寸与后台 renderW/renderH 一致
+  // 预览 iframe
   const renderW = Math.round(genState.width * scale * GEN_PREVIEW_SCALE);
   const renderH = Math.round(genState.height * scale * GEN_PREVIEW_SCALE);
-  
-  var previewSrcDoc: string;
-  if (genState.isCubism4) {
-    // Cubism 4 预览
-    var encodedModelPath = decodedName.split('/').map(encodeURIComponent).join('/');
-    var modelUrl = genState.apiBase + '/model/' + encodedModelPath + '/' + encodeURIComponent(genState.modelJson);
-    previewSrcDoc = '<!DOCTYPE html><html><head>' +
-      '<script src="' + genState.apiBase + '/live2dcubismcore.min.js"><\/script>' +
-      '<script src="' + genState.apiBase + '/pixi.min.js"><\/script>' +
-      '<script src="' + genState.apiBase + '/cubism4.min.js"><\/script>' +
-      '<style>body{margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:transparent;overflow:hidden}canvas{max-width:100%;max-height:100%}</style>' +
-      '</head><body><canvas id="live2d" width="' + renderW + '" height="' + renderH + '"></canvas>' +
-      '<script>' +
-      'try{' +
-      'var cv=document.getElementById("live2d");' +
-      'if(!cv)throw new Error("canvas not found");' +
-      'var app=new PIXI.Application({view:cv,width:' + renderW + ',height:' + renderH + ',backgroundAlpha:0,autoDensity:true,resolution:window.devicePixelRatio||1});' +
-      'if(!PIXI.live2d||!PIXI.live2d.Live2DModel)throw new Error("PIXI.live2d not available");' +
-      'console.log("[Cubeism4] Loading model:",' + JSON.stringify(modelUrl) + ');' +
-      'PIXI.live2d.Live2DModel.from(' + JSON.stringify(modelUrl) + ').then(function(m){' +
-      'console.log("[Cubism4] Model loaded:",m.width,m.height,m.scale.x,m.scale.y);' +
-      'm.anchor.set(0.5,0.5);m.x=' + (renderW/2) + ';m.y=' + (renderH/2) + ';' +
-      'var origW=m.width/m.scale.x,origH=m.height/m.scale.y;' +
-      'var sc=Math.min(' + renderW + '/origW,' + renderH + '/origH);m.scale.set(sc);' +
-      'console.log("[Cubism4] Scale:",sc,"orig:",origW,origH);' +
-      'app.stage.addChild(m);' +
-      'console.log("[Cubism4] Model added to stage");' +
-      '}).catch(function(e){console.error("[Cubism4] Load error:",e);});' +
-      '}catch(e){console.error("[Cubism4] Init error:",e);}' +
-      '<\/script></body></html>';
-  } else {
-    // Cubism 2 预览
-    previewSrcDoc = '<!DOCTYPE html><html><head>' +
-      '<script src="' + genState.apiBase + '/live2d.min.js"><\/script>' +
-      '<style>body{margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:transparent;overflow:hidden}canvas{max-width:100%;max-height:100%}</style>' +
-      '</head><body><canvas id="live2d" width="' + renderW + '" height="' + renderH + '"></canvas>' +
-      '<script>loadlive2d("live2d","' + genState.apiBase + '/get/?name=' + encodeURIComponent(decodedName) + '&textures_id=' + genState.skinId + '")<\/script>' +
-      '</body></html>';
-  }
+
+  const previewSrcDoc = useMemo(() => {
+    if (genState.isCubism4) {
+      const encodedModelPath = decodedName.split('/').map(encodeURIComponent).join('/');
+      const modelUrl = genState.apiBase + '/model/' + encodedModelPath + '/' + encodeURIComponent(genState.modelJson);
+      return '<!DOCTYPE html><html><head>' +
+        '<script src="' + genState.apiBase + '/live2dcubismcore.min.js"><\/script>' +
+        '<script src="' + genState.apiBase + '/pixi.min.js"><\/script>' +
+        '<script src="' + genState.apiBase + '/cubism4.min.js"><\/script>' +
+        '<style>body{margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:transparent;overflow:hidden}canvas{max-width:100%;max-height:100%}</style>' +
+        '</head><body><canvas id="live2d" width="' + renderW + '" height="' + renderH + '"></canvas>' +
+        '<script>' +
+        'try{' +
+        'var cv=document.getElementById("live2d");' +
+        'if(!cv)throw new Error("canvas not found");' +
+        'var app=new PIXI.Application({view:cv,width:' + renderW + ',height:' + renderH + ',backgroundAlpha:0,autoDensity:true,resolution:window.devicePixelRatio||1});' +
+        'if(!PIXI.live2d||!PIXI.live2d.Live2DModel)throw new Error("PIXI.live2d not available");' +
+        'PIXI.live2d.Live2DModel.from(' + JSON.stringify(modelUrl) + ').then(function(m){' +
+        'm.anchor.set(0.5,0.5);m.x=' + (renderW/2) + ';m.y=' + (renderH/2) + ';' +
+        'var origW=m.width/m.scale.x,origH=m.height/m.scale.y;' +
+        'var sc=Math.min(' + renderW + '/origW,' + renderH + '/origH);m.scale.set(sc);' +
+        'app.stage.addChild(m);' +
+        '}).catch(function(e){console.error("[Cubism4] Load error:",e);});' +
+        '}catch(e){console.error("[Cubism4] Init error:",e);}' +
+        '<\/script></body></html>';
+    } else {
+      return '<!DOCTYPE html><html><head>' +
+        '<script src="' + genState.apiBase + '/live2d.min.js"><\/script>' +
+        '<style>body{margin:0;display:flex;align-items:center;justify-content:center;height:100vh;background:transparent;overflow:hidden}canvas{max-width:100%;max-height:100%}</style>' +
+        '</head><body><canvas id="live2d" width="' + renderW + '" height="' + renderH + '"></canvas>' +
+        '<script>loadlive2d("live2d","' + genState.apiBase + '/get/?name=' + encodeURIComponent(decodedName) + '&textures_id=' + genState.skinId + '")<\/script>' +
+        '</body></html>';
+    }
+  }, [genState.isCubism4, genState.apiBase, genState.modelJson, genState.skinId, decodedName, renderW, renderH]);
 
   const updateGen = (partial: Partial<GenState>) => {
     setGenState(prev => ({ ...prev, ...partial }));

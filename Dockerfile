@@ -16,6 +16,9 @@ FROM node:22-alpine
 
 WORKDIR /app
 
+# 创建非 root 用户
+RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 
@@ -26,17 +29,14 @@ COPY admin/ admin/
 
 RUN rm -f admin/api/users.json admin/api/rate_limit.json && \
     mkdir -p /app/defaults/api && \
-    node -e "var b=require('bcryptjs');var h=b.hashSync(process.env.ADMIN_PASSWORD||'admin123',12);var d={users:{admin:{username:'admin',password_hash:h,role:'admin',created_at:new Date().toISOString(),failed_attempts:0,locked_until:null}},reset_tokens:{}};require('fs').writeFileSync('/app/defaults/api/users.json',JSON.stringify(d,null,4));" && \
-    mkdir -p /app/model
-
-# PHP API 文件（传统部署时使用，Docker 模式下不执行）
-COPY add/ add/
-COPY get/ get/
-COPY tools/ tools/
+    mkdir -p /app/model && \
+    chown -R appuser:appgroup /app
 
 EXPOSE 8080
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD node -e "require('http').get('http://localhost:8080/admin/',function(r){process.exit(r.statusCode===200?0:1)})"
+  CMD node -e "require('http').get('http://localhost:8080/get/?name=_healthcheck_',function(r){process.exit(r.statusCode<500?0:1)}).on('error',function(){process.exit(1)})"
+
+USER appuser
 
 ENTRYPOINT ["/app/docker-entrypoint.sh"]

@@ -1,5 +1,6 @@
 import { Shirt, Eye } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { memo } from 'react';
 
 interface ModelCardProps {
   name: string;
@@ -9,7 +10,7 @@ interface ModelCardProps {
   index: number;
 }
 
-export default function ModelCard({ name, group, skinCount, preview, index }: ModelCardProps) {
+export default memo(function ModelCard({ name, group, skinCount, preview, index }: ModelCardProps) {
   const navigate = useNavigate();
   const displayName = name.split('/').pop() || name;
 
@@ -19,7 +20,10 @@ export default function ModelCard({ name, group, skinCount, preview, index }: Mo
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={() => navigate(`/model/${encodeURIComponent(name)}`)}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); navigate(`/model/${encodeURIComponent(name)}`); } }}
       className="card-glow group cursor-pointer bg-white rounded-2xl overflow-hidden border border-gray-200"
       style={{ animationDelay: `${index * 60}ms` }}
     >
@@ -53,4 +57,4 @@ export default function ModelCard({ name, group, skinCount, preview, index }: Mo
       </div>
     </div>
   );
-}
+})

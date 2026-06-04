@@ -8,10 +8,10 @@ export default function Header() {
         <Link to="/" className="flex items-center gap-2">
           <span className="text-xl font-bold">Live<span className="text-cyan-600">2D</span></span>
         </Link>
-        <nav className="flex items-center gap-6">
+        <nav aria-label="主导航" className="flex items-center gap-6">
           <Link to="/" className="text-sm text-gray-700 hover:text-cyan-600 transition-colors">首页</Link>
           <a href="/admin/" className="text-sm text-gray-700 hover:text-cyan-600 transition-colors">管理</a>
-          <a href="https://github.com" target="_blank" rel="noopener" className="text-gray-500 hover:text-cyan-600 transition-colors">
+          <a href="https://github.com" target="_blank" rel="noopener" aria-label="GitHub" className="text-gray-500 hover:text-cyan-600 transition-colors">
             <Github size={18} />
           </a>
         </nav>

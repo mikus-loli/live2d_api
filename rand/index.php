@@ -1,18 +1,35 @@
 <?php
-isset($_GET['id']) ? $modelId = (int)$_GET['id'] : exit('error');
+if (!isset($_GET['id'])) {
+    header("Content-type: application/json");
+    echo json_encode(array('error' => 'id parameter is required'));
+    exit;
+}
+
+$modelId = (int)$_GET['id'];
 
 require '../tools/modelList.php';
 require '../tools/jsonCompatible.php';
 
-$modelList = new modelList();
+$modelListObj = new modelList();
 $jsonCompatible = new jsonCompatible();
 
-$modelList = $modelList->get_list();
+$modelList = $modelListObj->get_list();
 
-$modelRandNewId = true;
-while ($modelRandNewId) {
-    $modelRandId = rand(0, count($modelList['models'])-1)+1;
-    $modelRandNewId = $modelRandId == $modelId ? true : false;
+$totalModels = count($modelList['models']);
+if ($totalModels === 0) {
+    header("Content-type: application/json");
+    echo json_encode(array('error' => 'no models available'));
+    exit;
+}
+
+if ($totalModels === 1) {
+    $modelRandId = 1;
+} else {
+    $modelRandNewId = true;
+    while ($modelRandNewId) {
+        $modelRandId = rand(0, $totalModels - 1) + 1;
+        $modelRandNewId = ($modelRandId === $modelId);
+    }
 }
 
 header("Content-type: application/json");

@@ -2,18 +2,18 @@ services:
   live2d-api:
     build:
       context: .
-      args:
-        - ADMIN_PASSWORD=${ADMIN_PASSWORD:-admin123}
     image: ghcr.io/${GITHUB_REPOSITORY:-user}/live2d_api:latest
     container_name: live2d-api
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     volumes:
       - api_data:/app/admin/api
       - model_data:/app/model
     environment:
       - TZ=Asia/Shanghai
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:-}
+      - NODE_ENV=production
 
 volumes:
   api_data:

@@ -2,6 +2,8 @@
 
 require __DIR__ . '/config.php';
 
+require_auth();
+
 try {
     $input = get_json_input();
     if (!$input) {
@@ -15,6 +17,14 @@ try {
 
     if ($oldName === '') {
         json_response(false, null, 'old_name is required');
+    }
+
+    if (!validate_model_name($oldName)) {
+        json_response(false, null, 'Invalid old_name format');
+    }
+
+    if ($newName !== '' && !validate_model_name($newName)) {
+        json_response(false, null, 'Invalid new_name format');
     }
 
     $list = get_model_list();

@@ -5,13 +5,13 @@ import type { ModelListResponse } from '@/utils/api';
 function extractCategories(models: ModelListResponse | null): string[] {
   if (!models || !Array.isArray(models.models)) return ['全部'];
   const cats = new Set<string>();
-  models.models.forEach(m => {
+  models.models.forEach((m: string | string[]) => {
     if (typeof m === 'string') {
       const parts = m.split('/');
       if (parts.length > 1) cats.add(parts[0]);
       else cats.add(m);
     } else if (Array.isArray(m)) {
-      m.forEach(sub => {
+      m.forEach((sub: string) => {
         const parts = sub.split('/');
         if (parts.length > 1) cats.add(parts[0]);
         else cats.add(sub);

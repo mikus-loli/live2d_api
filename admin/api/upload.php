@@ -2,6 +2,8 @@
 
 require __DIR__ . '/config.php';
 
+require_auth();
+
 function extract_zip($zipPath, $destDir) {
     $zip = new ZipArchive;
     $result = $zip->open($zipPath);
@@ -84,8 +86,8 @@ try {
     }
 
     // 清理模型名称，移除不允许的字符
-    $modelName = preg_replace('/[^a-zA-Z0-9_\-\/\u4e00-\u9fff]/', '', $modelName);
-    if ($modelName === '') {
+    $modelName = preg_replace('/[^a-zA-Z0-9_\-\/\x{4e00}-\x{9fff}]/u', '', $modelName);
+    if ($modelName === '' || !validate_model_name($modelName)) {
         json_response(false, null, 'Invalid model name');
     }
 
@@ -105,7 +107,7 @@ try {
     $uploadedFiles = array();
 
     if ($ext === 'zip') {
-        $tmpDir = sys_get_temp_dir() . '/live2d_upload_' . time() . '_' . mt_rand();
+        $tmpDir = sys_get_temp_dir() . '/live2d_upload_' . bin2hex(random_bytes(8));
         mkdir($tmpDir, 0755, true);
 
         if (!extract_zip($file['tmp_name'], $tmpDir)) {
@@ -140,7 +142,7 @@ try {
             // 防止 Zip Slip 路径遍历
             $resolvedDest = realpath(dirname($destPath)) . '/' . basename($zf['name']);
             $resolvedBase = realpath($modelDir);
-            if ($resolvedBase === false || strpos($resolvedDest, $resolvedBase) !== 0) continue;
+            if ($resolvedBase === false || ($resolvedDest !== $resolvedBase && strpos($resolvedDest, $resolvedBase . DIRECTORY_SEPARATOR) !== 0)) continue;
             $destSubDir = dirname($destPath);
             if (!is_dir($destSubDir)) {
                 mkdir($destSubDir, 0755, true);
