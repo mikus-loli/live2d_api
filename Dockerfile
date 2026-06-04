@@ -14,10 +14,6 @@ RUN cd frontend && npm run build && rm -rf node_modules
 
 FROM node:22-alpine
 
-RUN apk add --no-cache su-exec && \
-    addgroup -g 1001 appuser && \
-    adduser -u 1001 -G appuser -s /bin/sh -D appuser
-
 WORKDIR /app
 
 COPY --from=builder /app/node_modules ./node_modules
@@ -31,8 +27,7 @@ COPY admin/ admin/
 RUN rm -f admin/api/users.json admin/api/rate_limit.json && \
     mkdir -p /app/defaults/api && \
     node -e "var b=require('bcryptjs');var h=b.hashSync(process.env.ADMIN_PASSWORD||'admin123',12);var d={users:{admin:{username:'admin',password_hash:h,role:'admin',created_at:new Date().toISOString(),failed_attempts:0,locked_until:null}},reset_tokens:{}};require('fs').writeFileSync('/app/defaults/api/users.json',JSON.stringify(d,null,4));" && \
-    mkdir -p /app/model && \
-    chown -R appuser:appuser /app
+    mkdir -p /app/model
 
 # PHP API 文件（传统部署时使用，Docker 模式下不执行）
 COPY add/ add/
