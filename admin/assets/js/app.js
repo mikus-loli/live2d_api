@@ -1145,7 +1145,6 @@ var App = (function () {
     if (!modelName) { UI.toast('请先选择模型', 'error'); return; }
 
     try {
-      var dataUrl;
       if (genState.isCubism4 && genPixiApp && genPixiApp.view) {
         // Cubism 4: 临时提高渲染分辨率后截图
         var renderer = genPixiApp.renderer;
@@ -1163,41 +1162,55 @@ var App = (function () {
         genPixiApp.stage.scale.set(scale);
         renderer.render(genPixiApp.stage);
 
-        dataUrl = renderer.view.toDataURL('image/png');
+        var dataUrl = renderer.view.toDataURL('image/png');
 
         // 还原
         genPixiApp.stage.scale.set(1);
         renderer.resize(origW, origH);
         renderer.resolution = origRes;
+
+        if (!dataUrl) { UI.toast('截图失败', 'error'); return; }
+        doUpload(dataUrl, modelName);
       } else {
-        var canvas = document.getElementById('gen-preview-canvas');
-        if (!canvas || !canvas.toDataURL) { UI.toast('未找到预览画布', 'error'); return; }
-        dataUrl = canvas.toDataURL('image/png');
-      }
-
-      if (!dataUrl) { UI.toast('截图失败', 'error'); return; }
-
-      UI.toast('正在生成封面...', 'info');
-      fetch(dataUrl)
-        .then(function (res) { return res.blob(); })
-        .then(function (blob) {
-          var form = new FormData();
-          form.append('file', blob, 'preview.png');
-          form.append('model_name', modelName);
-          return fetch('/admin/api/set_cover', { method: 'POST', body: form });
-        })
-        .then(function (r) { return r.json(); })
-        .then(function (data) {
-          if (data.success) {
-            UI.toast('封面已生成', 'success');
-          } else {
-            UI.toast('生成失败: ' + (data.message || 'Unknown error'), 'error');
+        // Cubism 2: 先复位鼠标跟踪，等待模型回正后再截图
+        document.dispatchEvent(new MouseEvent('mouseout', { bubbles: true }));
+        setTimeout(function () {
+          try {
+            var canvas = document.getElementById('gen-preview-canvas');
+            if (!canvas || !canvas.toDataURL) { UI.toast('未找到预览画布', 'error'); return; }
+            var dataUrl = canvas.toDataURL('image/png');
+            if (!dataUrl) { UI.toast('截图失败', 'error'); return; }
+            doUpload(dataUrl, modelName);
+          } catch (e) {
+            UI.toast('截图失败: ' + e.message, 'error');
           }
-        })
-        .catch(function () { UI.toast('网络错误', 'error'); });
+        }, 300);
+      }
     } catch (e) {
       UI.toast('截图失败: ' + e.message, 'error');
     }
+  }
+
+  function doUpload(dataUrl, modelName) {
+    UI.toast('正在生成封面...', 'info');
+    fetch(dataUrl)
+      .then(function (res) { return res.blob(); })
+      .then(function (blob) {
+        var form = new FormData();
+        form.append('file', blob, 'preview.png');
+        form.append('model_name', modelName);
+        return fetch('/admin/api/set_cover', { method: 'POST', body: form });
+      })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        if (data.success) {
+          UI.toast('封面已生成', 'success');
+          if (typeof loadModels === 'function') loadModels();
+        } else {
+          UI.toast('生成失败: ' + (data.message || 'Unknown error'), 'error');
+        }
+      })
+      .catch(function () { UI.toast('网络错误', 'error'); });
   }
 
   function copyCode() {

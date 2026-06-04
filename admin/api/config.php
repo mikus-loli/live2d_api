@@ -29,11 +29,40 @@ function json_response($success, $data = null, $message = '') {
     exit;
 }
 
+function count_model_skins($modelPath) {
+    $texDir = $modelPath . '/textures';
+    if (is_dir($texDir)) {
+        $files = @scandir($texDir);
+        if ($files !== false) {
+            $count = 0;
+            foreach ($files as $f) {
+                if (preg_match('/\.(png|jpg|jpeg|webp|avif)$/i', $f)) {
+                    $count++;
+                }
+            }
+            return $count ?: 1;
+        }
+    }
+    return 1;
+}
+
+function find_preview($modelDir) {
+    $exts = array('.png', '.jpg', '.jpeg', '.webp', '.gif');
+    foreach ($exts as $ext) {
+        if (file_exists($modelDir . '/preview' . $ext)) {
+            return 'preview' . $ext;
+        }
+    }
+    return null;
+}
+
 function get_model_list() {
     // 从文件系统扫描模型目录，自动构建模型列表
     $models = array();
     $messages = array();
-    if (!is_dir(MODEL_DIR)) return array('models' => $models, 'messages' => $messages);
+    $skinCounts = array();
+    $previews = array();
+    if (!is_dir(MODEL_DIR)) return array('models' => $models, 'messages' => $messages, 'skin_counts' => $skinCounts, 'previews' => $previews);
 
     $entries = scandir(MODEL_DIR);
     foreach ($entries as $entry) {
@@ -55,6 +84,9 @@ function get_model_list() {
         if ($hasConfig) {
             $models[] = $entry;
             $messages[] = $entry;
+            $skinCounts[] = count_model_skins(MODEL_DIR . '/' . $entry);
+            $pvFile = find_preview(MODEL_DIR . '/' . $entry);
+            $previews[] = $pvFile ? ('model/' . str_replace('\\', '/', $entry) . '/' . $pvFile) : null;
         } else {
             // 分组目录：扫描子模型
             $subDirs = array();
@@ -74,14 +106,26 @@ function get_model_list() {
             if (count($subDirs) === 1) {
                 $models[] = $subDirs[0];
                 $messages[] = $entry;
+                $skinCounts[] = count_model_skins(MODEL_DIR . '/' . $subDirs[0]);
+                $pvFile = find_preview(MODEL_DIR . '/' . $subDirs[0]);
+                $previews[] = $pvFile ? ('model/' . str_replace('\\', '/', $subDirs[0]) . '/' . $pvFile) : null;
             } elseif (count($subDirs) > 1) {
                 $models[] = $subDirs;
                 $messages[] = $entry;
+                $groupSkins = array();
+                $groupPreviews = array();
+                foreach ($subDirs as $subDir) {
+                    $groupSkins[] = count_model_skins(MODEL_DIR . '/' . $subDir);
+                    $pvFile2 = find_preview(MODEL_DIR . '/' . $subDir);
+                    $groupPreviews[] = $pvFile2 ? ('model/' . str_replace('\\', '/', $subDir) . '/' . $pvFile2) : null;
+                }
+                $skinCounts[] = $groupSkins;
+                $previews[] = $groupPreviews;
             }
         }
     }
 
-    return array('models' => $models, 'messages' => $messages);
+    return array('models' => $models, 'messages' => $messages, 'skin_counts' => $skinCounts, 'previews' => $previews);
 }
 
 function save_model_list($list) {
