@@ -3,25 +3,52 @@
 @tailwind utilities;
 
 :root {
-  font-family: "Noto Sans SC", system-ui, sans-serif;
-  line-height: 1.5;
+  font-family: "Noto Sans SC", "Inter", system-ui, -apple-system, sans-serif;
+  line-height: 1.6;
   font-weight: 400;
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  --color-primary: #06b6d4;
+  --color-primary-light: #22d3ee;
+  --color-primary-dark: #0891b2;
+  --color-accent: #f472b6;
+  --color-accent-light: #f9a8d4;
+  --color-surface: #ffffff;
+  --color-surface-alt: #f8fafc;
+  --color-surface-elevated: #ffffff;
+  --color-text-primary: #0f172a;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94a3b8;
+  --color-border: #e2e8f0;
+  --color-border-hover: #cbd5e1;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --shadow-glow: 0 0 20px rgba(6, 182, 212, 0.15);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 250ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 400ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 body {
   overflow-x: hidden;
+  background: var(--color-surface-alt);
+  color: var(--color-text-primary);
 }
 
 /* 自定义滚动条 */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #f1f5f9;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: #cbd5e1;
@@ -33,24 +60,32 @@ body {
 /* Firefox 滚动条 */
 * {
   scrollbar-width: thin;
-  scrollbar-color: #cbd5e1 #f1f5f9;
+  scrollbar-color: #cbd5e1 transparent;
 }
 
 /* 卡片悬停发光效果 */
 .card-glow {
-  transition: all 0.3s ease;
+  transition: all var(--transition-base);
+  box-shadow: var(--shadow-sm);
 }
 .card-glow:hover {
-  box-shadow: 0 0 16px rgba(0, 229, 255, 0.1), 0 4px 16px rgba(0, 0, 0, 0.08);
-  transform: translateY(-2px);
+  box-shadow: var(--shadow-glow), var(--shadow-md);
+  transform: translateY(-4px);
 }
 
 /* 渐变文字 */
 .gradient-text {
-  background: linear-gradient(135deg, #0891b2, #e11d48);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 50%, var(--color-primary-light) 100%);
+  background-size: 200% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
+  animation: gradientShift 6s ease-in-out infinite;
+}
+
+@keyframes gradientShift {
+  0%, 100% { background-position: 0% center; }
+  50% { background-position: 100% center; }
 }
 
 /* 背景粒子 */
@@ -58,14 +93,130 @@ body {
   position: absolute;
   width: 2px;
   height: 2px;
-  background: rgba(8, 145, 178, 0.3);
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.6), rgba(244, 114, 182, 0.3));
   border-radius: 50%;
   animation: particleFloat 8s ease-in-out infinite;
+  filter: blur(0.5px);
 }
 
 @keyframes particleFloat {
-  0%, 100% { transform: translateY(0) translateX(0); opacity: 0.3; }
-  25% { transform: translateY(-30px) translateX(10px); opacity: 0.6; }
-  50% { transform: translateY(-60px) translateX(-5px); opacity: 0.3; }
-  75% { transform: translateY(-30px) translateX(15px); opacity: 0.5; }
+  0%, 100% { transform: translateY(0) translateX(0); opacity: 0.2; }
+  25% { transform: translateY(-30px) translateX(10px); opacity: 0.5; }
+  50% { transform: translateY(-60px) translateX(-5px); opacity: 0.2; }
+  75% { transform: translateY(-30px) translateX(15px); opacity: 0.4; }
+}
+
+/* 玻璃态效果 */
+.glass {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+}
+
+/* 输入框聚焦动画 */
+.input-focus {
+  transition: all var(--transition-base);
+  border: 1.5px solid var(--color-border);
+}
+.input-focus:hover {
+  border-color: var(--color-border-hover);
+}
+.input-focus:focus {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+  outline: none;
+}
+
+/* 按钮悬浮效果 */
+.btn-hover {
+  transition: all var(--transition-fast);
+  position: relative;
+  overflow: hidden;
+}
+.btn-hover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0));
+  opacity: 0;
+  transition: opacity var(--transition-fast);
+}
+.btn-hover:hover::after {
+  opacity: 1;
+}
+.btn-hover:active {
+  transform: scale(0.97);
+}
+
+/* 入场动画 */
+.animate-in {
+  animation: animateIn 0.5s ease-out both;
+}
+
+@keyframes animateIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 交错入场动画 */
+.stagger-in > * {
+  animation: animateIn 0.4s ease-out both;
+}
+.stagger-in > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-in > *:nth-child(2) { animation-delay: 60ms; }
+.stagger-in > *:nth-child(3) { animation-delay: 120ms; }
+.stagger-in > *:nth-child(4) { animation-delay: 180ms; }
+.stagger-in > *:nth-child(5) { animation-delay: 240ms; }
+.stagger-in > *:nth-child(6) { animation-delay: 300ms; }
+.stagger-in > *:nth-child(7) { animation-delay: 360ms; }
+.stagger-in > *:nth-child(8) { animation-delay: 420ms; }
+.stagger-in > *:nth-child(n+9) { animation-delay: 480ms; }
+
+/* 脉冲光点 */
+.pulse-dot {
+  position: relative;
+}
+.pulse-dot::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  background: var(--color-primary);
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  animation: pulseDot 2s ease-in-out infinite;
+}
+
+@keyframes pulseDot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(6, 182, 212, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(6, 182, 212, 0); }
+}
+
+/* 代码块样式优化 */
+.code-block {
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+.code-block pre {
+  font-family: 'JetBrains Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  tab-size: 2;
+}
+
+/* 分割线装饰 */
+.divider-glow {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--color-primary), transparent);
+  opacity: 0.3;
 }

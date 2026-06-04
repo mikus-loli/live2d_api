@@ -27,19 +27,23 @@ export default function CategoryFilter() {
 
   return (
     <div className="flex flex-wrap gap-2 mb-8">
-      {categories.map(cat => (
-        <button
-          key={cat}
-          onClick={() => setActiveCategory(cat)}
-          className={`px-4 py-1.5 rounded-full text-sm transition-all ${
-            activeCategory === cat
-              ? 'bg-cyan-500/10 text-cyan-600 border border-cyan-500/30'
-              : 'bg-gray-100 text-gray-500 border border-gray-200 hover:border-gray-400 hover:text-gray-700'
-          }`}
-        >
-          {cat}
-        </button>
-      ))}
+      {categories.map(cat => {
+        const isActive = activeCategory === cat;
+        return (
+          <button
+            key={cat}
+            onClick={() => setActiveCategory(cat)}
+            className={`
+              px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200
+              ${isActive
+                ? 'bg-gradient-to-r from-cyan-500 to-cyan-400 text-white shadow-md shadow-cyan-500/20'
+                : 'bg-white text-gray-500 border border-gray-200 hover:border-cyan-200 hover:text-cyan-600 hover:bg-cyan-50/50 shadow-sm'}
+            `}
+          >
+            {cat}
+          </button>
+        );
+      })}
     </div>
   );
 }

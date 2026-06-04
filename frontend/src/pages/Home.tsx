@@ -26,12 +26,15 @@ export default function Home() {
       <main className="pt-16">
         <HeroSection />
 
-        <section className="container mx-auto px-4 pb-20">
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold">模型精选</h2>
+        <section className="container mx-auto px-4 sm:px-6 pb-20">
+          <div className="flex items-center justify-between mb-8">
+            <div>
+              <h2 className="text-2xl sm:text-3xl font-bold text-gray-800">模型精选</h2>
+              <p className="text-sm text-gray-400 mt-1">选择你喜欢的看板娘模型</p>
+            </div>
             <button
               onClick={handleRefresh}
-              className="flex items-center gap-2 text-sm text-gray-500 hover:text-cyan-600 transition-colors"
+              className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-500 hover:text-cyan-600 bg-white border border-gray-200 rounded-xl hover:border-cyan-200 hover:bg-cyan-50/50 shadow-sm transition-all duration-200 active:scale-[0.97]"
             >
               <RefreshCw size={14} />
               换一换
