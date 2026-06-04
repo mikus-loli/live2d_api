@@ -529,7 +529,34 @@ var Live2DPreview = (function () {
   function updateSkinSelectorForCubism4() {
     var container = document.getElementById('skin-selector');
     if (!container) return;
-    container.innerHTML = '<span class="skin-info">Cubism 4 模型皮肤切换暂不支持</span>';
+
+    // 获取 Cubism 4 模型的皮肤列表
+    var xhr = new XMLHttpRequest();
+    xhr.open('GET', '../admin/api/skins?model_name=' + encodeURIComponent(currentModel), true);
+    xhr.onload = function () {
+      if (xhr.status === 200) {
+        try {
+          var resp = JSON.parse(xhr.responseText);
+          if (resp.success && resp.data && resp.data.skins_count > 1) {
+            skinsData.count = resp.data.skins_count;
+            skinsData.list = resp.data.skins || [];
+            currentSkinId = 1;
+            updateSkinSelector();
+            preloadAdjacentSkins(1);
+          } else {
+            container.innerHTML = '<span class="skin-info">无可切换皮肤</span>';
+          }
+        } catch (e) {
+          container.innerHTML = '<span class="skin-info">无可切换皮肤</span>';
+        }
+      } else {
+        container.innerHTML = '<span class="skin-info">无可切换皮肤</span>';
+      }
+    };
+    xhr.onerror = function () {
+      container.innerHTML = '<span class="skin-info">无可切换皮肤</span>';
+    };
+    xhr.send();
   }
 
   function selectSkin(skinId) {
@@ -539,7 +566,14 @@ var Live2DPreview = (function () {
     if (skinId === currentSkinId) return;
 
     currentSkinId = skinId;
-    loadSkinConfig(skinId);
+
+    if (pixiModel) {
+      // Cubism 4: 运行时纹理替换
+      switchCubism4Skin(skinId);
+    } else {
+      // Cubism 2: 重新加载配置
+      loadSkinConfig(skinId);
+    }
     preloadAdjacentSkins(skinId);
   }
 
@@ -555,6 +589,85 @@ var Live2DPreview = (function () {
     var newId = currentSkinId + 1;
     if (newId > skinsData.count) newId = 1;
     selectSkin(newId);
+  }
+
+  function switchCubism4Skin(skinId) {
+    if (!pixiModel || isSwitching) return;
+
+    var skin = skinsData.list.find(function (s) { return s.id === skinId; });
+    if (!skin || !skin.textures || skin.textures.length === 0) {
+      UI.toast('皮肤数据不可用', 'info');
+      return;
+    }
+
+    isSwitching = true;
+
+    // 设置 canvas 半透明表示切换中
+    if (canvas4) {
+      canvas4.style.opacity = '0.5';
+      canvas4.style.transition = 'opacity 0.3s ease';
+    }
+
+    // 预加载新纹理图片
+    var texUrls = skin.textures.map(function (t) {
+      var clean = t.replace(/^\.\//, '');
+      return '../model/' + encodePath(currentModel) + '/' + encodePath(clean);
+    });
+
+    var loaded = 0;
+    var textures = [];
+
+    function onAllLoaded() {
+      // 替换模型内部纹理
+      if (pixiModel && pixiModel.internalModel) {
+        var internal = pixiModel.internalModel;
+        var texArr = internal.textures || internal._textures ||
+                     (internal.coreModel && internal.coreModel._textures);
+        if (texArr && Array.isArray(texArr)) {
+          for (var j = 0; j < Math.min(textures.length, texArr.length); j++) {
+            texArr[j] = textures[j];
+          }
+          if (typeof internal.update === 'function') internal.update(0, true);
+          pixiModel.update(0);
+        }
+      }
+
+      // 恢复透明度
+      if (canvas4) canvas4.style.opacity = '1';
+      isSwitching = false;
+      updateSkinSelector();
+      UI.toast('皮肤 ' + skinId + ': ' + skin.name, 'info');
+    }
+
+    function onLoadError(url) {
+      console.warn('[Cubism4 Skin] Texture load failed, falling back to model reload:', url);
+      // 回退方案：销毁当前模型，重新加载带 textures_id 的配置
+      var modelName = currentModel;
+      destroyPixi();
+      showCanvas2();
+      // 通过 /get/ API 获取带指定皮肤的配置
+      var configUrl = '../get/?name=' + encodeURIComponent(modelName) + '&textures_id=' + skinId;
+      if (canvas4) canvas4.style.opacity = '1';
+      isSwitching = false;
+      UI.toast('纹理替换失败，已回退', 'error');
+    }
+
+    for (var k = 0; k < texUrls.length; k++) {
+      (function (url, idx) {
+        var img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = function () {
+          var tex = PIXI.Texture.from(img);
+          textures[idx] = tex;
+          loaded++;
+          if (loaded === texUrls.length) onAllLoaded();
+        };
+        img.onerror = function () {
+          onLoadError(url);
+        };
+        img.src = url;
+      })(texUrls[k], k);
+    }
   }
 
   function loadSkinConfig(skinId) {
@@ -606,11 +719,6 @@ var Live2DPreview = (function () {
   function switchTexture() {
     if (!currentModel) {
       UI.toast('未加载模型', 'info');
-      return;
-    }
-
-    if (pixiModel) {
-      UI.toast('Cubism 4 模型纹理切换暂不支持', 'info');
       return;
     }
 
