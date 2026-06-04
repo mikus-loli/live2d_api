@@ -6,8 +6,113 @@ var crypto = require('crypto');
 
 var BASE = path.join(__dirname, '..');
 var MODEL_DIR = path.join(BASE, 'model');
-var MODEL_LIST_FILE = path.join(BASE, 'model_list.json');
 var USERS_FILE = path.join(__dirname, 'api', 'users.json');
+
+// 统计模型皮肤数量
+function countModelSkins(modelPath) {
+  var texDir = path.join(modelPath, 'textures');
+  if (fs.existsSync(texDir)) {
+    try {
+      var files = fs.readdirSync(texDir).filter(function (f) {
+        return /\.(png|jpg|jpeg|webp|avif)$/i.test(f);
+      });
+      return files.length || 1;
+    } catch (e) {}
+  }
+  return 1;
+}
+
+// 从文件系统扫描构建模型列表（替代 model_list.json）
+function buildModelListFromFilesystem() {
+  var models = [];
+  var messages = [];
+  var skinCounts = [];
+  var previews = [];
+  if (!fs.existsSync(MODEL_DIR)) return { models: [], messages: [], skin_counts: [], previews: [] };
+  try {
+    var entries = fs.readdirSync(MODEL_DIR);
+    for (var i = 0; i < entries.length; i++) {
+      var entry = entries[i];
+      if (entry === '.' || entry === '..' || entry.startsWith('.') || entry === '.gitkeep') continue;
+      var entryPath = path.join(MODEL_DIR, entry);
+      if (!fs.statSync(entryPath).isDirectory()) continue;
+      var subFiles;
+      try { subFiles = fs.readdirSync(entryPath); } catch (e) { continue; }
+      var hasConfig = false;
+      for (var j = 0; j < subFiles.length; j++) {
+        if (subFiles[j] === 'index.json' || subFiles[j].endsWith('.model3.json')) {
+          hasConfig = true;
+          break;
+        }
+      }
+      // 检测封面图
+      function findPreview(modelDir) {
+        var exts = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+        for (var e = 0; e < exts.length; e++) {
+          if (fs.existsSync(path.join(modelDir, 'preview' + exts[e]))) return 'preview' + exts[e];
+        }
+        return null;
+      }
+      if (hasConfig) {
+        var modelRelPath = entry;
+        models.push(modelRelPath);
+        messages.push(entry);
+        skinCounts.push(countModelSkins(path.join(MODEL_DIR, entry)));
+        var pvFile = findPreview(path.join(MODEL_DIR, entry));
+        previews.push(pvFile ? ('model/' + modelRelPath.replace(/\\/g, '/') + '/' + pvFile) : null);
+      } else {
+        var subDirs = [];
+        for (var k = 0; k < subFiles.length; k++) {
+          var subEntry = subFiles[k];
+          if (subEntry === '.' || subEntry === '..' || subEntry.startsWith('.') || subEntry === 'general') continue;
+          var subPath = path.join(entryPath, subEntry);
+          if (!fs.statSync(subPath).isDirectory()) continue;
+          try {
+            var modelFiles = fs.readdirSync(subPath);
+            for (var l = 0; l < modelFiles.length; l++) {
+              if (modelFiles[l] === 'index.json' || modelFiles[l].endsWith('.model3.json')) {
+                subDirs.push(entry + '/' + subEntry);
+                break;
+              }
+            }
+          } catch (e) {}
+        }
+        if (subDirs.length === 1) {
+          models.push(subDirs[0]);
+          messages.push(entry);
+          skinCounts.push(countModelSkins(path.join(MODEL_DIR, subDirs[0])));
+          var pvFile = findPreview(path.join(MODEL_DIR, subDirs[0]));
+          previews.push(pvFile ? ('model/' + subDirs[0].replace(/\\/g, '/') + '/' + pvFile) : null);
+        } else if (subDirs.length > 1) {
+          models.push(subDirs);
+          messages.push(entry);
+          var groupSkins = [];
+          var groupPreviews = [];
+          for (var m = 0; m < subDirs.length; m++) {
+            groupSkins.push(countModelSkins(path.join(MODEL_DIR, subDirs[m])));
+            var pvFile2 = findPreview(path.join(MODEL_DIR, subDirs[m]));
+            groupPreviews.push(pvFile2 ? ('model/' + subDirs[m].replace(/\\/g, '/') + '/' + pvFile2) : null);
+          }
+          skinCounts.push(groupSkins);
+          previews.push(groupPreviews);
+        }
+      }
+    }
+  } catch (e) {}
+  return { models: models, messages: messages, skin_counts: skinCounts, previews: previews };
+}
+
+// 获取模型列表（优先用缓存）
+function getModelList() {
+  var now = Date.now();
+  if (modelListCache && (now - modelListCacheTime) < MODEL_LIST_CACHE_TTL) {
+    return modelListCache;
+  }
+  var list = buildModelListFromFilesystem();
+  modelListCache = list;
+  modelListCacheTime = now;
+  return list;
+}
 
 var MAX_LOGIN_ATTEMPTS = 5;
 var LOCKOUT_DURATION = 900;
@@ -133,6 +238,15 @@ function getModelInfo(modelName) {
         info.skins_count = combos.length;
       }
     } catch (e) {}
+  }
+  // 检测封面图
+  var exts = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
+  for (var ei = 0; ei < exts.length; ei++) {
+    var previewPath = path.join(dir, 'preview' + exts[ei]);
+    if (fs.existsSync(previewPath)) {
+      info.preview = 'model/' + modelName + '/preview' + exts[ei];
+      break;
+    }
   }
   return info;
 }
@@ -474,6 +588,22 @@ function handleTextureConfig(req, res, modelName, textureId) {
     }
 
     if (textures.length === 0) {
+      // 自动扫描 textures 目录作为备选
+      var texDir = path.join(dir, 'textures');
+      if (fs.existsSync(texDir)) {
+        try {
+          var texFiles = fs.readdirSync(texDir).filter(function (f) {
+            return /\.(png|jpg|jpeg|webp|avif)$/i.test(f);
+          });
+          if (texFiles.length > 0) {
+            textures = texFiles.map(function (f) { return ['textures/' + f]; });
+            isMultiTexture = true;
+          }
+        } catch (e) {}
+      }
+    }
+
+    if (textures.length === 0) {
       res.writeHead(200, {
         'Content-Type': 'application/json; charset=utf-8',
         'Access-Control-Allow-Origin': '*',
@@ -595,15 +725,7 @@ setInterval(function () {
   });
 }, 300000);
 
-var modelListWatcher;
-var watchTarget = MODEL_LIST_FILE;
-try { watchTarget = fs.realpathSync(MODEL_LIST_FILE); } catch (e) {}
-try {
-  modelListWatcher = fs.watch(watchTarget, function () {
-    invalidateModelListCache();
-    broadcastWS({ type: 'models_updated' });
-  });
-} catch (e) {}
+// 模型列表基于文件系统实时扫描，缓存 5s 自动过期，无需文件监视
 
 var UPLOAD_MAX_SIZE = 50 * 1024 * 1024;
 var ALLOWED_EXTENSIONS = ['moc', 'moc3', 'json', 'mtn', 'png', 'jpg', 'avif'];
@@ -892,6 +1014,230 @@ function handleUpload(req, res) {
   });
 }
 
+function handlePublicAPI(req, res, urlPath) {
+  var parsedUrl = new URL(urlPath, 'http://localhost');
+  var pathname = parsedUrl.pathname.replace(/\/$/, '');
+  var query = Object.fromEntries(parsedUrl.searchParams.entries());
+
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+
+  // /add/ - 更新皮肤缓存
+  if (pathname === '/add') {
+    // 简单实现：扫描模型目录更新缓存
+    return jsonRes(res, { success: true, message: 'Cache update not supported in Node.js mode' });
+  }
+
+  var modelName = query.name;
+  var texturesId = parseInt(query.textures_id || '0', 10);
+  var id = query.id;
+
+  // 通过 id 解析模型名称
+  if (!modelName && id) {
+    var parts = String(id).split('-');
+    if (parts.length > 2) return jsonRes(res, { error: 'invalid id format' }, 400);
+    var groupId = parseInt(parts[0], 10) - 1;
+    var texId = parts[1] ? parseInt(parts[1], 10) : 0;
+    var list = getModelList();
+    var models = list.models || [];
+    if (groupId < 0 || groupId >= models.length) return jsonRes(res, { error: 'model not found' }, 404);
+    var entry = models[groupId];
+    if (Array.isArray(entry)) {
+      modelName = texId > 0 ? entry[(texId - 1) % entry.length] : entry[0];
+      texturesId = texId;
+    } else {
+      modelName = entry;
+      texturesId = texId;
+    }
+  }
+
+  if (!modelName) return jsonRes(res, { error: 'name or id required' }, 400);
+  if (!isPathSafe(modelName)) return jsonRes(res, { error: 'invalid model name' }, 400);
+
+  var modelDir = path.join(MODEL_DIR, modelName);
+  if (!fs.existsSync(modelDir)) return jsonRes(res, { error: 'model not found' }, 404);
+
+  // /rand/ 和 /switch/ - 模型切换
+  if (pathname === '/rand' || pathname === '/switch') {
+    var list2 = getModelList();
+    var models2 = list2.models || [];
+    var currentGroup = -1;
+    for (var gi = 0; gi < models2.length; gi++) {
+      var e = models2[gi];
+      if (e === modelName || (Array.isArray(e) && e.indexOf(modelName) >= 0)) {
+        currentGroup = gi;
+        break;
+      }
+    }
+    if (currentGroup < 0) return jsonRes(res, { error: 'model not in list' }, 404);
+
+    var nextGroup;
+    if (pathname === '/rand') {
+      nextGroup = Math.floor(Math.random() * models2.length);
+    } else {
+      nextGroup = (currentGroup + 1) % models2.length;
+    }
+    var nextEntry = models2[nextGroup];
+    var nextName = Array.isArray(nextEntry) ? nextEntry[0] : nextEntry;
+    return jsonRes(res, { model: { id: nextGroup + 1, name: nextName } });
+  }
+
+  // /rand_textures/ 和 /switch_textures/ - 皮肤切换
+  if (pathname === '/rand_textures' || pathname === '/switch_textures') {
+    var textures = loadTexturesCache(modelDir);
+    if (textures.length <= 1) return jsonRes(res, { model: { id: query.id || '1-0', name: modelName }, textures: textures });
+    var currentTex = texturesId;
+    var nextTex;
+    if (pathname === '/rand_textures') {
+      nextTex = Math.floor(Math.random() * textures.length);
+    } else {
+      nextTex = (currentTex + 1) % textures.length;
+    }
+    return jsonRes(res, { model: { id: (query.id || '1').split('-')[0] + '-' + nextTex, name: modelName }, textures_id: nextTex });
+  }
+
+  // /skins/ - 获取模型的皮肤列表
+  if (pathname === '/skins') {
+    var skinList = [];
+    var texs = loadTexturesCache(modelDir);
+    for (var si = 0; si < texs.length; si++) {
+      var t = texs[si];
+      var ts = Array.isArray(t) ? t : [t];
+      var nm = Array.isArray(t) ? 'Skin ' + (si + 1) : path.basename(String(t), path.extname(String(t)));
+      skinList.push({ id: si + 1, textures: ts, name: nm });
+    }
+    return jsonRes(res, { model_name: modelName, skins_count: skinList.length, skins: skinList });
+  }
+
+  // /get/ - 获取模型配置
+  var config = loadModelConfig(modelDir, modelName);
+  if (!config) return jsonRes(res, { error: 'model config not found' }, 404);
+
+  // Cubism 4 模型：移除 physics/pose/expressions，Cubism 2 SDK 不兼容
+  var isCubism4 = fs.readdirSync(modelDir).some(function (f) { return /\.model3\.json$/i.test(f); });
+  if (isCubism4) {
+    delete config.physics;
+    delete config.pose;
+    delete config.expressions;
+  }
+
+  // 应用皮肤
+  if (texturesId > 0) {
+    var textures = loadTexturesCache(modelDir);
+    if (textures[texturesId]) {
+      config.textures = Array.isArray(textures[texturesId]) ? textures[texturesId] : [textures[texturesId]];
+    }
+  }
+
+  // 将相对路径转为绝对路径（使用 ../model/ 前缀，因为 Live2D 库从 /get/ 解析相对路径）
+  // 对路径各段进行 URL 编码，避免中文等非 ASCII 字符被 Live2D 库双重编码
+  var encodedName = modelName.split('/').map(encodeURIComponent).join('/');
+  var prefix = '../model/' + encodedName + '/';
+  
+  function encodePathSegments(filePath) {
+    return filePath.split('/').map(encodeURIComponent).join('/');
+  }
+  
+  config.textures = (config.textures || []).map(function (t) { return prefix + encodePathSegments(t); });
+  if (config.model) config.model = prefix + encodePathSegments(config.model);
+  if (config.physics) config.physics = prefix + encodePathSegments(config.physics);
+  if (config.pose) config.pose = prefix + encodePathSegments(config.pose);
+  if (config.motions) {
+    Object.keys(config.motions).forEach(function (group) {
+      config.motions[group].forEach(function (m) {
+        if (m.file) m.file = prefix + encodePathSegments(m.file);
+        if (m.sound) m.sound = prefix + encodePathSegments(m.sound);
+      });
+    });
+  }
+  if (config.expressions) {
+    config.expressions.forEach(function (e) {
+      if (e.file) e.file = prefix + encodePathSegments(e.file);
+    });
+  }
+
+  // 标注 Cubism 4 模型
+  if (isCubism4) {
+    var files = fs.readdirSync(modelDir);
+    for (var fi2 = 0; fi2 < files.length; fi2++) {
+      if (/\.model3\.json$/i.test(files[fi2])) {
+        config.model3 = files[fi2];
+        break;
+      }
+    }
+  }
+
+  res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+  res.end(JSON.stringify(config));
+}
+
+function loadTexturesCache(modelDir) {
+  var cacheFile = path.join(modelDir, 'textures.cache');
+  if (fs.existsSync(cacheFile)) {
+    try { return JSON.parse(fs.readFileSync(cacheFile, 'utf-8')); } catch (e) {}
+  }
+  // 自动扫描 textures 目录，每个文件单独为一个皮肤
+  var texDir = path.join(modelDir, 'textures');
+  if (fs.existsSync(texDir)) {
+    var files = fs.readdirSync(texDir).filter(function (f) {
+      return /\.(png|jpg|jpeg|webp|avif)$/i.test(f);
+    });
+    if (files.length > 0) return files.map(function (f) { return 'textures/' + f; });  // 带 textures/ 前缀
+  }
+  return [];
+}
+
+function loadModelConfig(modelDir, modelName) {
+  // 尝试 index.json (Cubism 2)
+  var indexFile = path.join(modelDir, 'index.json');
+  if (fs.existsSync(indexFile)) {
+    try {
+      var cfg = JSON.parse(fs.readFileSync(indexFile, 'utf-8'));
+      // 验证 model 文件存在，否则 index.json 可能是 Cubism 4 的占位文件
+      if (cfg.model && fs.existsSync(path.join(modelDir, cfg.model))) {
+        return cfg;
+      }
+    } catch (e) {}
+  }
+  // 尝试 .model3.json (Cubism 4)
+  var files = fs.readdirSync(modelDir);
+  for (var i = 0; i < files.length; i++) {
+    if (/\.model3\.json$/i.test(files[i])) {
+      try {
+        var m3 = JSON.parse(fs.readFileSync(path.join(modelDir, files[i]), 'utf-8'));
+        var ref = m3.FileReferences || {};
+        var converted = {};
+        if (ref.Moc) converted.model = ref.Moc;
+        if (ref.Textures) converted.textures = ref.Textures;
+        if (ref.Physics) converted.physics = ref.Physics;
+        if (ref.Pose) converted.pose = ref.Pose;
+        if (ref.Motions) {
+          converted.motions = {};
+          Object.keys(ref.Motions).forEach(function (group) {
+            converted.motions[group] = ref.Motions[group].map(function (m) {
+              var entry = {};
+              if (m.File) entry.file = m.File;
+              if (m.Sound) entry.sound = m.Sound;
+              return entry;
+            });
+          });
+        }
+        if (ref.Expressions) {
+          converted.expressions = ref.Expressions.map(function (e) {
+            var entry = {};
+            if (e.File) entry.file = e.File;
+            if (e.Name) entry.name = e.Name;
+            return entry;
+          });
+        }
+        return converted;
+      } catch (e) {}
+    }
+  }
+  return null;
+}
+
 function handleAPI(req, res, urlPath) {
   var endpoint = urlPath.replace('/admin/api/', '').replace('.php', '');
 
@@ -904,15 +1250,7 @@ function handleAPI(req, res, urlPath) {
   if (endpoint === 'update_profile') return handleUpdateProfile(req, res);
 
   if (endpoint === 'list') {
-    var now = Date.now();
-    var list;
-    if (modelListCache && (now - modelListCacheTime) < MODEL_LIST_CACHE_TTL) {
-      list = modelListCache;
-    } else {
-      list = JSON.parse(fs.readFileSync(MODEL_LIST_FILE, 'utf-8'));
-      modelListCache = list;
-      modelListCacheTime = now;
-    }
+    var list = getModelList();
     var models = list.models;
     var messages = list.messages;
     var result = [];
@@ -931,7 +1269,7 @@ function handleAPI(req, res, urlPath) {
             id: null, name: subName, group: group,
             textures_count: subInfo.textures_count, skins_count: subInfo.skins_count,
             has_moc: subInfo.has_moc, has_physics: subInfo.has_physics, has_pose: subInfo.has_pose,
-            file_count: subInfo.file_count, is_cubism4: subInfo.is_cubism4,
+            file_count: subInfo.file_count, is_cubism4: subInfo.is_cubism4, preview: subInfo.preview,
           });
         }
         if (subModels.length === 0) return;
@@ -944,7 +1282,7 @@ function handleAPI(req, res, urlPath) {
           id: String(idx), name: entry, group: entry.split('/')[0] || entry, message: message,
           is_multi: false, textures_count: info.textures_count, skins_count: info.skins_count,
           has_moc: info.has_moc, has_physics: info.has_physics, has_pose: info.has_pose,
-          file_count: info.file_count, is_cubism4: info.is_cubism4,
+          file_count: info.file_count, is_cubism4: info.is_cubism4, preview: info.preview,
         });
       }
     });
@@ -1038,9 +1376,60 @@ function handleAPI(req, res, urlPath) {
           }
         }
       } catch (e) {}
+    } else {
+      // 自动扫描 textures 目录作为备选
+      var texDir = path.join(dir, 'textures');
+      if (fs.existsSync(texDir)) {
+        try {
+          var texFiles = fs.readdirSync(texDir).filter(function (f) {
+            return /\.(png|jpg|jpeg|webp|avif)$/i.test(f);
+          });
+          for (var i = 0; i < texFiles.length; i++) {
+            var tName = path.basename(texFiles[i], path.extname(texFiles[i]));
+            skins.push({ id: i + 1, textures: ['textures/' + texFiles[i]], name: tName });
+          }
+        } catch (e) {}
+      }
     }
 
     return jsonRes(res, { success: true, data: { model_name: modelName, skins_count: skins.length, skins: skins } });
+  }
+
+  // 设置模型封面图
+  if (endpoint === 'set_cover') {
+    if (req.method !== 'POST') return jsonRes(res, { success: false, data: null, message: 'Method not allowed' }, 405);
+    var contentType = req.headers['content-type'] || '';
+    if (contentType.indexOf('multipart/form-data') < 0) {
+      return jsonRes(res, { success: false, data: null, message: 'Content-Type must be multipart/form-data' });
+    }
+    parseMultipart(req, function (err, parts) {
+      if (err) return jsonRes(res, { success: false, data: null, message: err.message });
+      var filePart = null;
+      var modelName = '';
+      parts.forEach(function (p) {
+        if (p.name === 'file' && p.filename) filePart = p;
+        if (p.name === 'model_name') modelName = (p.value || '').trim();
+      });
+      if (!modelName) return jsonRes(res, { success: false, data: null, message: 'Missing model_name' });
+      if (!isPathSafe(modelName)) return jsonRes(res, { success: false, data: null, message: 'Invalid model name' });
+      var dir = path.join(MODEL_DIR, modelName);
+      if (!fs.existsSync(dir)) return jsonRes(res, { success: false, data: null, message: 'Model not found' });
+      if (!filePart || !filePart.data) return jsonRes(res, { success: false, data: null, message: 'No file uploaded' });
+      var ext = path.extname(filePart.filename).toLowerCase();
+      if (ext !== '.png' && ext !== '.jpg' && ext !== '.jpeg' && ext !== '.webp' && ext !== '.gif') return jsonRes(res, { success: false, data: null, message: 'Only image files allowed (png, jpg, webp, gif)' });
+      if (filePart.data.length > 10 * 1024 * 1024) return jsonRes(res, { success: false, data: null, message: 'File too large (max 10MB)' });
+      // 删除旧封面
+      ['preview.png', 'preview.jpg', 'preview.jpeg', 'preview.webp', 'preview.gif'].forEach(function (f) {
+        var old = path.join(dir, f);
+        if (fs.existsSync(old)) fs.unlinkSync(old);
+      });
+      var previewFile = 'preview' + ext;
+      var destPath = path.join(dir, previewFile);
+      fs.writeFileSync(destPath, filePart.data);
+      invalidateModelListCache();
+      jsonRes(res, { success: true, data: { preview: 'model/' + modelName.replace(/\\/g, '/') + '/' + previewFile }, message: 'Cover updated' });
+    });
+    return;
   }
 
   if (endpoint === 'create') {
@@ -1051,10 +1440,6 @@ function handleAPI(req, res, urlPath) {
         var message = (input.message || '').trim();
         var dirPath = path.join(MODEL_DIR, name);
         if (!name || (!fs.existsSync(dirPath))) return jsonRes(res, { success: false, data: null, message: '模型目录不存在' });
-        var list = JSON.parse(fs.readFileSync(MODEL_LIST_FILE, 'utf-8'));
-        list.models.push(name);
-        list.messages.push(message);
-        fs.writeFileSync(MODEL_LIST_FILE, JSON.stringify(list, null, 4));
         invalidateModelListCache();
         jsonRes(res, { success: true, data: { name: name, message: message }, message: 'Created' });
       } catch (e) { jsonRes(res, { success: false, data: null, message: '创建失败' }); }
@@ -1070,34 +1455,14 @@ function handleAPI(req, res, urlPath) {
         var newName = (input.new_name || '').trim();
         var message = input.message;
         if (!oldName) return jsonRes(res, { success: false, data: null, message: 'Missing old_name' });
-        var list = JSON.parse(fs.readFileSync(MODEL_LIST_FILE, 'utf-8'));
-        var found = false;
-        for (var i = 0; i < list.models.length; i++) {
-          var entry = list.models[i];
-          if (Array.isArray(entry)) {
-            for (var j = 0; j < entry.length; j++) {
-              if (entry[j] === oldName) { found = true; break; }
-            }
-          } else if (entry === oldName) { found = true; break; }
-          if (found) break;
-        }
-        if (!found) return jsonRes(res, { success: false, data: null, message: 'Model not found' });
+        var oldDir = path.join(MODEL_DIR, oldName);
+        if (!fs.existsSync(oldDir)) return jsonRes(res, { success: false, data: null, message: 'Model not found' });
         if (newName && newName !== oldName) {
-          var oldDir = path.join(MODEL_DIR, oldName);
           var newDir = path.join(MODEL_DIR, newName);
           if (fs.existsSync(oldDir) && !fs.existsSync(newDir)) {
             fs.renameSync(oldDir, newDir);
           }
-          for (var k = 0; k < list.models.length; k++) {
-            if (Array.isArray(list.models[k])) {
-              for (var l = 0; l < list.models[k].length; l++) {
-                if (list.models[k][l] === oldName) list.models[k][l] = newName;
-              }
-            } else if (list.models[k] === oldName) list.models[k] = newName;
-          }
         }
-        if (message !== null && message !== undefined) list.messages[i] = message;
-        fs.writeFileSync(MODEL_LIST_FILE, JSON.stringify(list, null, 4));
         invalidateModelListCache();
         jsonRes(res, { success: true, data: null, message: 'Updated' });
       } catch (e) { jsonRes(res, { success: false, data: null, message: '更新失败' }); }
@@ -1112,33 +1477,18 @@ function handleAPI(req, res, urlPath) {
         var name = (input.name || '').trim();
         var confirm = !!input.confirm;
         if (!name) return jsonRes(res, { success: false, data: null, message: 'Missing name' });
-        var list = JSON.parse(fs.readFileSync(MODEL_LIST_FILE, 'utf-8'));
-        var foundIdx = -1;
-        for (var i = 0; i < list.models.length; i++) {
-          if (Array.isArray(list.models[i])) {
-            for (var j = 0; j < list.models[i].length; j++) {
-              if (list.models[i][j] === name) { foundIdx = i; break; }
-            }
-          } else if (list.models[i] === name) { foundIdx = i; }
-          if (foundIdx >= 0) break;
-        }
-        if (foundIdx < 0) return jsonRes(res, { success: false, data: null, message: 'Model not found' });
+        var dir = path.join(MODEL_DIR, name);
+        if (!fs.existsSync(dir)) return jsonRes(res, { success: false, data: null, message: 'Model not found' });
         if (confirm) {
-          var dir = path.join(MODEL_DIR, name);
-          if (fs.existsSync(dir)) {
-            function rmdirRecursive(p) {
-              if (!fs.existsSync(p)) return;
-              if (fs.statSync(p).isDirectory()) {
-                fs.readdirSync(p).forEach(function (f) { rmdirRecursive(path.join(p, f)); });
-                fs.rmdirSync(p);
-              } else { fs.unlinkSync(p); }
-            }
-            rmdirRecursive(dir);
+          function rmdirRecursive(p) {
+            if (!fs.existsSync(p)) return;
+            if (fs.statSync(p).isDirectory()) {
+              fs.readdirSync(p).forEach(function (f) { rmdirRecursive(path.join(p, f)); });
+              fs.rmdirSync(p);
+            } else { fs.unlinkSync(p); }
           }
+          rmdirRecursive(dir);
         }
-        list.models.splice(foundIdx, 1);
-        list.messages.splice(foundIdx, 1);
-        fs.writeFileSync(MODEL_LIST_FILE, JSON.stringify(list, null, 4));
         invalidateModelListCache();
         jsonRes(res, { success: true, data: null, message: 'Deleted' });
       } catch (e) { jsonRes(res, { success: false, data: null, message: '删除失败' }); }
@@ -1166,14 +1516,7 @@ function handleAPI(req, res, urlPath) {
         } catch (e) {}
       });
     }
-    var list = JSON.parse(fs.readFileSync(MODEL_LIST_FILE, 'utf-8'));
-    var registered = {};
-    list.models.forEach(function (entry) {
-      if (Array.isArray(entry)) {
-        for (var i = 0; i < entry.length; i++) registered[entry[i]] = true;
-      } else { registered[entry] = true; }
-    });
-    result = result.filter(function (r) { return !registered[r]; });
+    // 所有模型目录均已通过文件系统自动注册，无需过滤
     return jsonRes(res, { success: true, data: result });
   }
 
@@ -1204,6 +1547,60 @@ var server = http.createServer(function (req, res) {
 
   if (urlPath.startsWith('/admin/api/')) {
     return handleAPI(req, res, urlPath);
+  }
+
+  // 动态返回模型列表（从文件系统扫描）
+  if (urlPath === '/model_list.json') {
+    try {
+      var modelList = buildModelListFromFilesystem();
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*', 'Cache-Control': 'public, max-age=5' });
+      res.end(JSON.stringify(modelList));
+    } catch (e) {
+      res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Access-Control-Allow-Origin': '*' });
+      res.end('{"models":[],"messages":[]}');
+    }
+    return;
+  }
+
+  // 公开 API: /get/, /rand/, /switch/, /rand_textures/, /switch_textures/, /add/, /skins/
+  // 使用 req.url（含查询字符串）而非 urlPath（仅 pathname）
+  if (urlPath.startsWith('/get/') || urlPath.startsWith('/rand/') || urlPath.startsWith('/switch/') ||
+      urlPath.startsWith('/rand_textures/') || urlPath.startsWith('/switch_textures/') || urlPath.startsWith('/add/') ||
+      urlPath.startsWith('/skins/')) {
+    return handlePublicAPI(req, res, req.url);
+  }
+
+  // 前台 SPA 路由
+  var FRONTEND_DIR = path.join(BASE, 'dist', 'frontend');
+  if (urlPath === '/' || urlPath === '') {
+    res.writeHead(302, { 'Location': '/frontend/' });
+    res.end();
+    return;
+  }
+  if (urlPath.startsWith('/frontend')) {
+    var subPath = urlPath.slice('/frontend'.length) || '/';
+    if (subPath === '/' || subPath === '') subPath = '/index.html';
+    var frontFilePath = path.join(FRONTEND_DIR, subPath);
+    if (fs.existsSync(frontFilePath) && !fs.statSync(frontFilePath).isDirectory()) {
+      var fExt = path.extname(frontFilePath).toLowerCase();
+      var fMime = MIME[fExt] || 'application/octet-stream';
+      var fHeaders = { 'Content-Type': fMime };
+      if (fExt === '.html') {
+        fHeaders['Cache-Control'] = 'no-cache';
+      } else {
+        fHeaders['Cache-Control'] = 'public, max-age=86400';
+      }
+      res.writeHead(200, fHeaders);
+      fs.createReadStream(frontFilePath).pipe(res);
+      return;
+    }
+    // SPA fallback: 所有未匹配的前台路由返回 index.html
+    var indexHtml = path.join(FRONTEND_DIR, 'index.html');
+    if (fs.existsSync(indexHtml)) {
+      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+      fs.createReadStream(indexHtml).pipe(res);
+      return;
+    }
   }
 
   if (urlPath === '/live2d.min.js') {

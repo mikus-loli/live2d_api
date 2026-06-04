@@ -41,7 +41,7 @@ try {
     }
 
     if (!$found) {
-        json_response(false, null, 'Model not found in model_list.json: ' . $oldName);
+        json_response(false, null, 'Model not found: ' . $oldName);
     }
 
     if ($newName !== '' && $newName !== $oldName) {

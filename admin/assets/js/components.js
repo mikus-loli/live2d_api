@@ -97,12 +97,13 @@ var UI = (function () {
         '<button class="btn btn-sm btn-outline" onclick="App.viewDetail(\'' + escapeHtml(model.sub_models && model.sub_models[0] ? model.sub_models[0].name : '') + '\')">详情</button>' +
         '<button class="btn btn-sm btn-outline" onclick="App.editModel(\'' + escapeHtml(model.name) + '\', \'' + escapeHtml(model.message || '') + '\')">编辑</button>' +
         '<button class="btn btn-sm btn-code" onclick="App.generateCode(\'' + escapeHtml(model.name) + '\')">生成代码</button>' +
-        '<button class="btn btn-sm btn-danger-outline" onclick="App.confirmDelete(\'' + escapeHtml(model.name) + '\')">删除</button>' +
-        '</div>' +
-        '</div>';
-    }
+      '<button class="btn btn-sm btn-outline" onclick="App.setModelCover(\'' + escapeHtml(model.name) + '\')">封面</button>' +
+      '<button class="btn btn-sm btn-danger-outline" onclick="App.confirmDelete(\'' + escapeHtml(model.name) + '\')">删除</button>' +
+      '</div>' +
+      '</div>';
+  }
 
-    return '<div class="model-card" data-name="' + escapeHtml(model.name) + '" data-group="' + escapeHtml(model.group) + '">' +
+  return '<div class="model-card" data-name="' + escapeHtml(model.name) + '" data-group="' + escapeHtml(model.group) + '">' +
       '<div class="card-header">' +
       '<div class="card-icon"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>' +
       '<div class="card-title-wrap"><h3 class="card-title">' + escapeHtml(displayName) + '</h3>' + groupLabel + '</div>' +
@@ -117,6 +118,7 @@ var UI = (function () {
       '<button class="btn btn-sm btn-outline" onclick="App.viewDetail(\'' + escapeHtml(model.name) + '\')">详情</button>' +
       '<button class="btn btn-sm btn-outline" onclick="App.editModel(\'' + escapeHtml(model.name) + '\', \'' + escapeHtml(model.message || '') + '\')">编辑</button>' +
       '<button class="btn btn-sm btn-code" onclick="App.generateCode(\'' + escapeHtml(model.name) + '\')">生成代码</button>' +
+      '<button class="btn btn-sm btn-outline" onclick="App.setModelCover(\'' + escapeHtml(model.name) + '\')">封面</button>' +
       '<button class="btn btn-sm btn-danger-outline" onclick="App.confirmDelete(\'' + escapeHtml(model.name) + '\')">删除</button>' +
       '</div>' +
       '</div>';

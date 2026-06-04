@@ -22,7 +22,14 @@ var App = (function () {
   function init() {
     loadUserInfo();
     loadGroups();
-    loadModels();
+    loadModels(function () {
+      // 检测 URL 参数 ?gen=ModelName，自动打开代码生成
+      var params = new URLSearchParams(window.location.search);
+      var genModel = params.get('gen');
+      if (genModel) {
+        generateCode(genModel);
+      }
+    });
     bindEvents();
     Live2DPreview.init();
     initTheme();
@@ -125,7 +132,7 @@ var App = (function () {
     };
   }
 
-  function loadModels() {
+  function loadModels(callback) {
     var container = document.getElementById('model-grid');
     if (!container) return;
     UI.showLoading(container);
@@ -135,10 +142,12 @@ var App = (function () {
         models = res.data || [];
         updateStats();
         renderFilteredModels();
+        if (callback) callback();
       })
       .catch(function (err) {
         UI.showEmpty(container, '加载模型失败: ' + err.message);
         UI.toast('加载模型失败', 'error');
+        if (callback) callback();
       });
   }
 
@@ -387,6 +396,35 @@ var App = (function () {
     if (nameEl) nameEl.textContent = name;
     if (confirmCheck) confirmCheck.checked = false;
     UI.openModal('modal-delete');
+  }
+
+  // 设置模型封面图
+  function setModelCover(modelName) {
+    var input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png,image/jpeg,image/webp,image/gif';
+    input.onchange = function () {
+      var file = input.files && input.files[0];
+      if (!file) return;
+      var form = new FormData();
+      form.append('file', file);
+      form.append('model_name', modelName);
+      UI.toast('正在上传封面...', 'info');
+      fetch('/admin/api/set_cover', { method: 'POST', body: form })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.success) {
+            UI.toast('封面已更新', 'success');
+            loadModels();
+          } else {
+            UI.toast('上传失败: ' + (data.message || 'Unknown error'), 'error');
+          }
+        })
+        .catch(function (e) {
+          UI.toast('网络错误', 'error');
+        });
+    };
+    input.click();
   }
 
   var pendingUploadFile = null;
@@ -1024,6 +1062,13 @@ var App = (function () {
   function loadGenPreview2(canvas) {
     canvas.style.display = '';
     if (typeof loadlive2d === 'function') {
+      // 强制 WebGL preserveDrawingBuffer 以支持截图
+      var origGetContext = canvas.getContext;
+      canvas.getContext = function (type, attrs) {
+        attrs = attrs || {};
+        attrs.preserveDrawingBuffer = true;
+        return origGetContext.call(canvas, type, attrs);
+      };
       var skinId = genState.skinId || 0;
       var url;
       if (genState.isMulti && genState.skins.length > 0 && skinId > 0) {
@@ -1034,7 +1079,8 @@ var App = (function () {
           url = genState.apiBase + '/model/' + encodePath(genState.modelName) + '/index.json';
         }
       } else if (skinId > 0) {
-        url = genState.apiBase + '/model/' + encodePath(genState.modelName) + '/config-' + skinId + '.json';
+        // 使用 /get/ API 传递 textures_id 以支持纹理切换
+        url = genState.apiBase + '/get/?name=' + encodePath(genState.modelName) + '&textures_id=' + skinId;
       } else {
         url = genState.apiBase + '/model/' + encodePath(genState.modelName) + '/index.json';
       }
@@ -1063,6 +1109,7 @@ var App = (function () {
         backgroundAlpha: 0,
         autoDensity: true,
         resolution: window.devicePixelRatio || 1,
+        preserveDrawingBuffer: true,
       });
     } catch (e) { return; }
 
@@ -1089,6 +1136,67 @@ var App = (function () {
     var wrap = document.getElementById('gen-preview-wrap');
     if (wrap) {
       while (wrap.firstChild) wrap.removeChild(wrap.firstChild);
+    }
+  }
+
+  // 从预览画布生成封面图
+  function genCover() {
+    var modelName = genState.modelName;
+    if (!modelName) { UI.toast('请先选择模型', 'error'); return; }
+
+    try {
+      var dataUrl;
+      if (genState.isCubism4 && genPixiApp && genPixiApp.view) {
+        // Cubism 4: 临时提高渲染分辨率后截图
+        var renderer = genPixiApp.renderer;
+        var origW = renderer.width;
+        var origH = renderer.height;
+        var origRes = renderer.resolution;
+
+        // 以 1024 为长边基准高清渲染
+        var maxDim = 1024;
+        var scale = Math.min(maxDim / origW, maxDim / origH);
+        var hiW = Math.round(origW * scale);
+        var hiH = Math.round(origH * scale);
+        renderer.resolution = 1;
+        renderer.resize(hiW, hiH);
+        genPixiApp.stage.scale.set(scale);
+        renderer.render(genPixiApp.stage);
+
+        dataUrl = renderer.view.toDataURL('image/png');
+
+        // 还原
+        genPixiApp.stage.scale.set(1);
+        renderer.resize(origW, origH);
+        renderer.resolution = origRes;
+      } else {
+        var canvas = document.getElementById('gen-preview-canvas');
+        if (!canvas || !canvas.toDataURL) { UI.toast('未找到预览画布', 'error'); return; }
+        dataUrl = canvas.toDataURL('image/png');
+      }
+
+      if (!dataUrl) { UI.toast('截图失败', 'error'); return; }
+
+      UI.toast('正在生成封面...', 'info');
+      fetch(dataUrl)
+        .then(function (res) { return res.blob(); })
+        .then(function (blob) {
+          var form = new FormData();
+          form.append('file', blob, 'preview.png');
+          form.append('model_name', modelName);
+          return fetch('/admin/api/set_cover', { method: 'POST', body: form });
+        })
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          if (data.success) {
+            UI.toast('封面已生成', 'success');
+          } else {
+            UI.toast('生成失败: ' + (data.message || 'Unknown error'), 'error');
+          }
+        })
+        .catch(function () { UI.toast('网络错误', 'error'); });
+    } catch (e) {
+      UI.toast('截图失败: ' + e.message, 'error');
     }
   }
 
@@ -1469,6 +1577,7 @@ var App = (function () {
     showUploadModal: showUploadModal,
     editModel: editModel,
     confirmDelete: confirmDelete,
+    setModelCover: setModelCover,
     doCreate: doCreate,
     doEdit: doEdit,
     doDelete: doDelete,
@@ -1476,6 +1585,7 @@ var App = (function () {
     scanUnregistered: scanUnregistered,
     selectScannedDir: selectScannedDir,
     generateCode: generateCode,
+    genCover: genCover,
     setGenPos: setGenPos,
     setGenScale: setGenScale,
     setHideOnMobile: setHideOnMobile,

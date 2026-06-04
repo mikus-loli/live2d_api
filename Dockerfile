@@ -6,6 +6,12 @@ COPY package.json package-lock.json ./
 
 RUN npm ci --omit=dev && npm cache clean --force
 
+# 构建前台
+COPY frontend/package.json frontend/package-lock.json ./frontend/
+RUN cd frontend && npm ci
+COPY frontend/ ./frontend/
+RUN cd frontend && npm run build && rm -rf node_modules
+
 FROM node:22-alpine
 
 RUN apk add --no-cache su-exec && \
@@ -15,25 +21,23 @@ RUN apk add --no-cache su-exec && \
 WORKDIR /app
 
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/dist ./dist
 
 COPY docker-entrypoint.sh docker-entrypoint.sh
 RUN chmod +x docker-entrypoint.sh
 
 COPY admin/ admin/
 
-RUN rm -f admin/api/users.json admin/api/rate_limit.json admin/api/model_list.json && \
+RUN rm -f admin/api/users.json admin/api/rate_limit.json && \
     mkdir -p /app/defaults/api && \
     node -e "var b=require('bcryptjs');var h=b.hashSync(process.env.ADMIN_PASSWORD||'admin123',12);var d={users:{admin:{username:'admin',password_hash:h,role:'admin',created_at:new Date().toISOString(),failed_attempts:0,locked_until:null}},reset_tokens:{}};require('fs').writeFileSync('/app/defaults/api/users.json',JSON.stringify(d,null,4));" && \
-    echo '{"models":[],"messages":[]}' > /app/defaults/api/model_list.json && \
     mkdir -p /app/model && \
-    ln -sf /app/admin/api/model_list.json /app/model_list.json && \
     chown -R appuser:appuser /app
 
 # PHP API 文件（传统部署时使用，Docker 模式下不执行）
 COPY add/ add/
 COPY get/ get/
 COPY tools/ tools/
-COPY model_list.json model_list.json
 
 EXPOSE 8080
 

@@ -31,11 +31,11 @@ try {
     foreach ($list['models'] as $entry) {
         if (is_array($entry)) {
             if (in_array($name, $entry)) {
-                json_response(false, null, 'Model already exists in model_list.json');
+                json_response(false, null, 'Model already exists');
             }
         } else {
             if ($entry === $name) {
-                json_response(false, null, 'Model already exists in model_list.json');
+                json_response(false, null, 'Model already exists');
             }
         }
     }

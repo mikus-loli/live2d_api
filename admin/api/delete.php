@@ -39,7 +39,7 @@ try {
     }
 
     if (!$found) {
-        json_response(false, null, 'Model not found in model_list.json: ' . $name);
+        json_response(false, null, 'Model not found: ' . $name);
     }
 
     if ($foundSubIdx >= 0) {

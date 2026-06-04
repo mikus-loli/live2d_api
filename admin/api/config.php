@@ -1,7 +1,6 @@
 <?php
 
 define('MODEL_DIR', __DIR__ . '/../../model');
-define('MODEL_LIST_FILE', __DIR__ . '/../../model_list.json');
 define('UPLOAD_MAX_SIZE', 50 * 1024 * 1024);
 define('ALLOWED_EXTENSIONS', array('moc', 'moc3', 'json', 'mtn', 'png', 'jpg', 'avif'));
 
@@ -31,15 +30,62 @@ function json_response($success, $data = null, $message = '') {
 }
 
 function get_model_list() {
-    if (!file_exists(MODEL_LIST_FILE)) {
-        return array('models' => array(), 'messages' => array());
+    // 从文件系统扫描模型目录，自动构建模型列表
+    $models = array();
+    $messages = array();
+    if (!is_dir(MODEL_DIR)) return array('models' => $models, 'messages' => $messages);
+
+    $entries = scandir(MODEL_DIR);
+    foreach ($entries as $entry) {
+        if ($entry === '.' || $entry === '..' || strpos($entry, '.') === 0 || $entry === '.gitkeep') continue;
+        $entryPath = MODEL_DIR . '/' . $entry;
+        if (!is_dir($entryPath)) continue;
+
+        // 检查此目录自身是否为模型（包含 index.json 或 .model3.json）
+        $subFiles = @scandir($entryPath);
+        if ($subFiles === false) continue;
+        $hasConfig = false;
+        foreach ($subFiles as $sf) {
+            if ($sf === 'index.json' || preg_match('/\.model3\.json$/i', $sf)) {
+                $hasConfig = true;
+                break;
+            }
+        }
+
+        if ($hasConfig) {
+            $models[] = $entry;
+            $messages[] = $entry;
+        } else {
+            // 分组目录：扫描子模型
+            $subDirs = array();
+            foreach ($subFiles as $subEntry) {
+                if ($subEntry === '.' || $subEntry === '..' || strpos($subEntry, '.') === 0 || $subEntry === 'general') continue;
+                $subPath = $entryPath . '/' . $subEntry;
+                if (!is_dir($subPath)) continue;
+                $modelFiles = @scandir($subPath);
+                if ($modelFiles === false) continue;
+                foreach ($modelFiles as $mf) {
+                    if ($mf === 'index.json' || preg_match('/\.model3\.json$/i', $mf)) {
+                        $subDirs[] = $entry . '/' . $subEntry;
+                        break;
+                    }
+                }
+            }
+            if (count($subDirs) === 1) {
+                $models[] = $subDirs[0];
+                $messages[] = $entry;
+            } elseif (count($subDirs) > 1) {
+                $models[] = $subDirs;
+                $messages[] = $entry;
+            }
+        }
     }
-    $content = file_get_contents(MODEL_LIST_FILE);
-    return json_decode($content, true);
+
+    return array('models' => $models, 'messages' => $messages);
 }
 
 function save_model_list($list) {
-    file_put_contents(MODEL_LIST_FILE, json_encode($list, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    // 模型列表基于文件系统自动生成，无需保存
 }
 
 function scan_dir_recursive($dir, $base = '') {
