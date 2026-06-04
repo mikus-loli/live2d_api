@@ -1421,11 +1421,15 @@ function handleAPI(req, res, urlPath) {
       // 删除旧封面
       ['preview.png', 'preview.jpg', 'preview.jpeg', 'preview.webp', 'preview.gif'].forEach(function (f) {
         var old = path.join(dir, f);
-        if (fs.existsSync(old)) fs.unlinkSync(old);
+        try { if (fs.existsSync(old)) fs.unlinkSync(old); } catch (e) { /* ignore permission errors on old files */ }
       });
       var previewFile = 'preview' + ext;
       var destPath = path.join(dir, previewFile);
-      fs.writeFileSync(destPath, filePart.data);
+      try {
+        fs.writeFileSync(destPath, filePart.data);
+      } catch (writeErr) {
+        return jsonRes(res, { success: false, data: null, message: 'Failed to write preview: ' + writeErr.message });
+      }
       invalidateModelListCache();
       jsonRes(res, { success: true, data: { preview: 'model/' + modelName.replace(/\\/g, '/') + '/' + previewFile }, message: 'Cover updated' });
     });
