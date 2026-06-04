@@ -1682,7 +1682,12 @@ var server = http.createServer(function (req, res) {
   var headers = { 'Content-Type': mime };
   if (urlPath.startsWith('/model/')) {
     headers['Access-Control-Allow-Origin'] = '*';
-    headers['Cache-Control'] = 'public, max-age=86400';
+    // 封面预览图使用 no-cache，避免重新生成后浏览器仍显示旧封面
+    if (/\/preview\.(png|jpg|jpeg|webp|gif)$/i.test(urlPath)) {
+      headers['Cache-Control'] = 'no-cache';
+    } else {
+      headers['Cache-Control'] = 'public, max-age=86400';
+    }
   }
 
   var stat = fs.statSync(filePath);
