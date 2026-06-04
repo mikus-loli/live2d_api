@@ -1246,16 +1246,16 @@ var App = (function () {
 
   function buildEmbedCSS(s) {
     var pos = s.position === 'left' ? 'left' : 'right';
-    var css = '#live2d{position:fixed;' + pos + ':' + s.offsetX + 'px;bottom:' + s.offsetY + 'px;z-index:99999;pointer-events:auto;opacity:0;transition:opacity .4s ease}#live2d.show{opacity:1}#live2d-dialog{pointer-events:none}';
+    var css = '.live2d-wrap{position:fixed;' + pos + ':' + s.offsetX + 'px;bottom:' + s.offsetY + 'px;z-index:99999;pointer-events:auto}#live2d{position:relative;display:block;opacity:0;transition:opacity .4s ease}#live2d.show{opacity:1}#live2d-dialog{pointer-events:none}';
     if (s.hideOnMobile) {
-      css += '@media(max-width:768px){#live2d,#live2d-dialog{display:none!important}}';
+      css += '@media(max-width:768px){.live2d-wrap,#live2d-dialog{display:none!important}}';
     }
     return '<style>' + css + '</style>\n';
   }
 
   function buildMobileCheckScript(s) {
     if (!s.hideOnMobile) return '';
-    return '<script>function _l2dMobileCheck(){var e=document.getElementById("live2d"),d=document.getElementById("live2d-dialog");if(!e)return;var isMobile=screen.width<=768||/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);if(isMobile){e.style.display="none";if(d)d.style.display="none"}else{e.style.display="";if(d)d.style.display=""}}_l2dMobileCheck();window.addEventListener("resize",_l2dMobileCheck)<\/script>';
+    return '<script>function _l2dMobileCheck(){var e=document.querySelector(".live2d-wrap"),d=document.getElementById("live2d-dialog");if(!e)return;var isMobile=screen.width<=768||/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent);if(isMobile){e.style.display="none";if(d)d.style.display="none"}else{e.style.display="";if(d)d.style.display=""}}_l2dMobileCheck();window.addEventListener("resize",_l2dMobileCheck)<\/script>';
   }
 
   function getCodeTemplate2(modelName, apiBase, s) {
@@ -1277,11 +1277,13 @@ var App = (function () {
     } else {
       modelUrl = apiBase + '/model/' + encodePath(modelName) + '/index.json';
     }
-    var dialogCSS = '#live2d-dialog{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(' + s.offsetY + 'px + ' + (h + 20) + 'px);background:rgba(255,255,255,0.95);border-radius:12px;padding:12px 16px;max-width:280px;min-width:120px;box-shadow:0 4px 20px rgba(0,0,0,0.15);z-index:99998;display:none;animation:dialogFadeIn 0.3s ease}#live2d-dialog.show{display:block}#live2d-dialog::after{content:"";position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid rgba(255,255,255,0.95)}#dialog-content{font-size:14px;color:#333;text-align:center;line-height:1.4}@keyframes dialogFadeIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
+    var dialogCSS = '#live2d-dialog{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:8px;background:rgba(255,255,255,0.95);border-radius:12px;padding:12px 16px;max-width:280px;min-width:120px;box-shadow:0 4px 20px rgba(0,0,0,0.15);z-index:99998;display:none;animation:dialogFadeIn 0.3s ease}#live2d-dialog.show{display:block}#live2d-dialog::after{content:"";position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid rgba(255,255,255,0.95)}#dialog-content{font-size:14px;color:#333;text-align:center;line-height:1.4}@keyframes dialogFadeIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
     return buildEmbedCSS(s) +
       '<style>' + dialogCSS + '</style>\n' +
-      '<div id="live2d-dialog"><div id="dialog-content"></div></div>\n' +
-      '<canvas id="live2d" width="' + w + '" height="' + h + '"></canvas>\n' +
+      '<div class="live2d-wrap">\n' +
+      '  <div id="live2d-dialog"><div id="dialog-content"></div></div>\n' +
+      '  <canvas id="live2d" width="' + w + '" height="' + h + '"></canvas>\n' +
+      '</div>\n' +
       '<script>\n' +
       '(function(){\n' +
       'var pos="' + pos + '",ox=' + s.offsetX + ',w=' + w + ',h=' + h + ';\n' +
@@ -1296,14 +1298,12 @@ var App = (function () {
       'var scrollMsgs={"25":"已经阅读四分之一啦，继续加油！","50":"已经阅读一半啦，觉得怎么样？","75":"马上就要读完了，精彩还在后面！","100":"哇，你竟然看完了！是不是很棒呢？"};\n' +
       'var dialogTimer=null,idleTimer=null,hoverTimer=null,scrollFired={};\n' +
       'function rnd(a){return a[Math.floor(Math.random()*a.length)]}\n' +
-      'function updateDialogPos(){var el=document.getElementById("live2d-dialog");if(!el)return;var dl;if(pos==="left"){dl=ox+Math.round(w/2)}else{dl=window.innerWidth-ox-Math.round(w/2)}el.style.left=dl+"px"}\n' +
       'function showDialog(t,d){var el=document.getElementById("live2d-dialog"),c=document.getElementById("dialog-content");if(!el||!c)return;if(dialogTimer){clearTimeout(dialogTimer);dialogTimer=null}c.textContent=t;el.classList.add("show");resetIdle();if(d&&d>0){dialogTimer=setTimeout(function(){hideDialog()},d)}}\n' +
       'function hideDialog(){var el=document.getElementById("live2d-dialog");if(el)el.classList.remove("show");if(dialogTimer){clearTimeout(dialogTimer);dialogTimer=null}}\n' +
       'function showRandomMsg(){showDialog(rnd(msgs),5000)}\n' +
       'function getTimeMsg(){var h=new Date().getHours(),r;for(var k in timeMsgs){var p=k.split("-"),a=parseInt(p[0]),b=parseInt(p[1]);if(h>=a&&h<=b){r=timeMsgs[k];break}}if(!r)return null;return Array.isArray(r)?r[Math.floor(Math.random()*r.length)]:r}\n' +
       'function resetIdle(){if(idleTimer)clearTimeout(idleTimer);idleTimer=setTimeout(function(){showRandomMsg()},30000)}\n' +
-      'updateDialogPos();window.addEventListener("resize",updateDialogPos);\n' +
-      'var cv=document.getElementById("live2d");\n' +
+      'var cv=document.getElementById("live2d"),wrap=cv.parentElement;\n' +
       'cv.addEventListener("mouseenter",function(){hoverTimer=setTimeout(function(){showDialog(rnd(hoverMsgs),4000)},500)});\n' +
       'cv.addEventListener("mouseleave",function(){if(hoverTimer){clearTimeout(hoverTimer);hoverTimer=null}});\n' +
       'cv.addEventListener("click",function(){showDialog(rnd(clickMsgs),4000)});\n' +
@@ -1322,11 +1322,13 @@ var App = (function () {
     var h = Math.round(s.height * (s.scale || 1));
     var pos = s.position === 'left' ? 'left' : 'right';
     var msgsJson = JSON.stringify(s.messages || ['你好呀~']);
-    var dialogCSS = '#live2d-dialog{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(' + s.offsetY + 'px + ' + (h + 20) + 'px);background:rgba(255,255,255,0.95);border-radius:12px;padding:12px 16px;max-width:280px;min-width:120px;box-shadow:0 4px 20px rgba(0,0,0,0.15);z-index:99998;display:none;animation:dialogFadeIn 0.3s ease}#live2d-dialog.show{display:block}#live2d-dialog::after{content:"";position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid rgba(255,255,255,0.95)}#dialog-content{font-size:14px;color:#333;text-align:center;line-height:1.4}@keyframes dialogFadeIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
+    var dialogCSS = '#live2d-dialog{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);margin-bottom:8px;background:rgba(255,255,255,0.95);border-radius:12px;padding:12px 16px;max-width:280px;min-width:120px;box-shadow:0 4px 20px rgba(0,0,0,0.15);z-index:99998;display:none;animation:dialogFadeIn 0.3s ease}#live2d-dialog.show{display:block}#live2d-dialog::after{content:"";position:absolute;bottom:-8px;left:50%;transform:translateX(-50%);border-left:8px solid transparent;border-right:8px solid transparent;border-top:8px solid rgba(255,255,255,0.95)}#dialog-content{font-size:14px;color:#333;text-align:center;line-height:1.4}@keyframes dialogFadeIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}';
     return buildEmbedCSS(s) +
       '<style>' + dialogCSS + '</style>\n' +
-      '<div id="live2d-dialog"><div id="dialog-content"></div></div>\n' +
-      '<canvas id="live2d" width="' + w + '" height="' + h + '"></canvas>\n' +
+      '<div class="live2d-wrap">\n' +
+      '  <div id="live2d-dialog"><div id="dialog-content"></div></div>\n' +
+      '  <canvas id="live2d" width="' + w + '" height="' + h + '"></canvas>\n' +
+      '</div>\n' +
       '<script>\n' +
       '(function(){\n' +
       'var b="' + apiBase + '",w=' + w + ',h=' + h + ',pos="' + pos + '",ox=' + s.offsetX + ',oy=' + s.offsetY + ';\n' +
@@ -1341,13 +1343,11 @@ var App = (function () {
       'var scrollMsgs={"25":"已经阅读四分之一啦，继续加油！","50":"已经阅读一半啦，觉得怎么样？","75":"马上就要读完了，精彩还在后面！","100":"哇，你竟然看完了！是不是很棒呢？"};\n' +
       'var dialogTimer=null,idleTimer=null,hoverTimer=null,scrollFired={};\n' +
       'function rnd(a){return a[Math.floor(Math.random()*a.length)]}\n' +
-      'function updateDialogPos(){var el=document.getElementById("live2d-dialog");if(!el)return;var dl;if(pos==="left"){dl=ox+Math.round(w/2)}else{dl=window.innerWidth-ox-Math.round(w/2)}el.style.left=dl+"px"}\n' +
       'function showDialog(t,d){var el=document.getElementById("live2d-dialog"),c=document.getElementById("dialog-content");if(!el||!c)return;if(dialogTimer){clearTimeout(dialogTimer);dialogTimer=null}c.textContent=t;el.classList.add("show");resetIdle();if(d&&d>0){dialogTimer=setTimeout(function(){hideDialog()},d)}}\n' +
       'function hideDialog(){var el=document.getElementById("live2d-dialog");if(el)el.classList.remove("show");if(dialogTimer){clearTimeout(dialogTimer);dialogTimer=null}}\n' +
       'function showRandomMsg(){showDialog(rnd(msgs),5000)}\n' +
       'function getTimeMsg(){var h=new Date().getHours(),r;for(var k in timeMsgs){var p=k.split("-"),a=parseInt(p[0]),b=parseInt(p[1]);if(h>=a&&h<=b){r=timeMsgs[k];break}}if(!r)return null;return Array.isArray(r)?r[Math.floor(Math.random()*r.length)]:r}\n' +
       'function resetIdle(){if(idleTimer)clearTimeout(idleTimer);idleTimer=setTimeout(function(){showRandomMsg()},30000)}\n' +
-      'updateDialogPos();window.addEventListener("resize",updateDialogPos);\n' +
       'document.addEventListener("copy",function(){showDialog(copyMsg,4000)});\n' +
       'document.addEventListener("visibilitychange",function(){if(!document.hidden)showDialog(backMsg,4000)});\n' +
       'window.addEventListener("scroll",function(){var st=document.documentElement.scrollTop||document.body.scrollTop,sh=document.documentElement.scrollHeight-document.documentElement.clientHeight,pct=Math.round(st/sh*100);["25","50","75","100"].forEach(function(m){if(pct>=parseInt(m)&&!scrollFired[m]){scrollFired[m]=true;showDialog(scrollMsgs[m],4000)}})});\n' +
