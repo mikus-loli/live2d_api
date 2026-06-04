@@ -48,7 +48,7 @@ export default function ModelGrid() {
 
   if (loading) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         {Array.from({ length: 8 }, (_, i) => (
           <div key={i} className="bg-white rounded-2xl overflow-hidden animate-pulse">
             <div className="aspect-[4/3] bg-gray-100" />
@@ -72,7 +72,7 @@ export default function ModelGrid() {
   }
 
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
       {flatModels.map((model, idx) => (
         <ModelCard
           key={model.name}

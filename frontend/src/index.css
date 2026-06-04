@@ -36,8 +36,8 @@ body {
   transition: all 0.3s ease;
 }
 .card-glow:hover {
-  box-shadow: 0 0 30px rgba(0, 229, 255, 0.1), 0 8px 32px rgba(0, 0, 0, 0.08);
-  transform: translateY(-4px);
+  box-shadow: 0 0 16px rgba(0, 229, 255, 0.1), 0 4px 16px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
 }
 
 /* 渐变文字 */
